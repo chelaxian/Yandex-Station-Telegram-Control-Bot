@@ -4,7 +4,7 @@
 
 Telegram-интерфейс управления Яндекс Станциями через **LUNA**. Исходный Bot Control 2.7 от **@q_cold_city и @mipight** сохранён в ветке [`alfa`](https://github.com/chelaxian/Yandex-Station-Telegram-Control-Bot/tree/alfa). Разработка нового runtime ведётся в `main` по запросу владельца.
 
-> **3.0.0b1 — beta.** Возвращены основные прикладные функции 2.7. Автономная установка на колонку и аппаратная квалификация всех моделей ещё не завершены. См. [матрицу функций](docs/FEATURE_PARITY.md) и [проверки](docs/VALIDATION.md).
+> **3.0.0b1 — beta.** Возвращены основные прикладные функции 2.7. Автономная установка на колонку, провайдер штатного музыкального плеера и аппаратная квалификация всех моделей ещё не завершены. См. [матрицу функций](docs/FEATURE_PARITY.md) и [проверки](docs/VALIDATION.md).
 
 ## Что изменилось
 
@@ -38,7 +38,7 @@ Linux: используйте `.venv/bin/python`. `doctor` не требует �
 
 ## Совместимость и доверие
 
-Контракт beta закреплён на [`chelaxian/luna@46bc6a3`](https://github.com/chelaxian/luna/commit/46bc6a38fbf5aa197e2605c7ca394a980763704a): audio jobs и отдельно включаемые owner tools поверх аппаратной адаптации [PR24](https://github.com/nyakokitsu/luna/pull/24). Это не обещание наличия расширений в официальном релизе upstream. Строка версии Cargo сама по себе не подтверждает нужный commit.
+Контракт beta закреплён на [`chelaxian/luna@0f2393e`](https://github.com/chelaxian/luna/commit/0f2393e4d613472c79755b358abc3047a9466963): audio jobs и отдельно включаемые owner tools поверх аппаратной адаптации [PR24](https://github.com/nyakokitsu/luna/pull/24). Это не обещание наличия расширений в официальном релизе upstream. Строка версии Cargo сама по себе не подтверждает нужный commit.
 
 Административный HTTP API LUNA **не имеет аутентификации**. Используйте loopback через существующий SSH tunnel или собственный HTTPS proxy с Bearer-проверкой. `X-Luna-Token` предназначен для запущенного плагина, а не для защиты admin API. Не открывайте порт runtime в интернет. Клиент не следует redirect, не наследует системный HTTP proxy и проверяет TLS по умолчанию.
 

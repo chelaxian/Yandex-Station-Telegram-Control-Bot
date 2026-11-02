@@ -6,7 +6,7 @@
 |---|---|---|---|
 | Громкость | implemented | /volume | ALSA capability и живой ответ LUNA |
 | Подсветка | implemented | /led | ring/logo по topology, release через LUNA |
-| Часы | implemented | /clock | Только при clock.available=true; без выдуманной бегущей строки |
+| Часы / экран | implemented | /clock · /screen | Пресеты, текст поддерживаемого алфавита, яркость/ночь; сегменты только из живой topology |
 | Диагностика | implemented | /health · /system | Датчики и opted-in owner/system: RAM, load, uptime, wireless |
 | Запись комнаты | implemented | /record | 1–30 секунд, только operator/owner, WAV только в памяти |
 | Плеер | partial | /media | Только зарегистрированные медиапровайдеры, не штатный плеер Алисы |
@@ -17,7 +17,7 @@
 | Проверка сети | implemented | /network | Доступность/RTT LUNA; ограничения интернета колонки сохраняются |
 | Интерком (назван VoIP в 2.7) | implemented | /call · /answer · /hangup | Фрагменты комнаты, голосовой приём, предел 30 минут; не Telegram calls |
 | Саундборд / голосовое / TTS | implemented | /sounds · /play · /tts | ffmpeg/espeak-ng на хосте; audio.jobs.v1 с конечным результатом и очисткой |
-| Темы / сирена / фейковый бан | implemented | /theme · /siren · /ban · /stop | Синтезированные темы, без сторонних звуковых лицензий |
+| Темы / сирена / фейковый бан | implemented | /theme · /siren · /ban · /stop | Автоматические темы по owner.speech.phase.v1, импортированные личные звуки или синтез |
 | Спросить помощника | implemented | /ask | Как в 2.7: локальные намерения и энциклопедия; не облачная Алиса |
 | История диалогов | implemented | /dialogs · /legacy_history | Диалоги помощника и read-only прежняя история |
 | Камера / фото / видео / охрана | implemented | /photo · /video · /guard | Явно настроенная камера хоста, как в 2.7; не несуществующая камера колонки |

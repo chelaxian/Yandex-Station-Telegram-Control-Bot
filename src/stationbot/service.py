@@ -127,6 +127,7 @@ HELP = """Yandex Station Telegram Control Bot
 /volume [0–100] — громкость
 /led ring|logo #RRGGBB|off
 /clock [ЧЧ:ММ|off] — часы, если доступны
+/screen cool|help|1337|cat|uwu|текст · /screen brightness 0–255 · /screen night
 /health — модель и датчики
 /capabilities — возможности runtime
 /microphones — список каналов
@@ -136,7 +137,7 @@ HELP = """Yandex Station Telegram Control Bot
 /plugins — установленные пакеты
 /invoke id — запуск пакета (владелец)
 /timer секунды — звук и уведомление в Telegram
-/alarm ЧЧ:ММ — ближайший будильник по времени хоста
+/alarm ЧЧ:ММ|10m|30s|1h — будильник в настроенном часовом поясе
 /timers — ваши таймеры
 /cancel_timer id — отмена своего таймера
 /history — журнал действий
@@ -157,6 +158,7 @@ HELP = """Yandex Station Telegram Control Bot
 /led_effect rainbow|pulse|police|off
 /system · /network · /cleanup · /discover подсеть/24
 /suggest текст — сохранить предложение
+/suggestions — предложения для владельца
 /features — статус переноса всех функций
 /access — управление доступом (владелец)
 /help — эта справка

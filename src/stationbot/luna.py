@@ -156,6 +156,18 @@ class Luna:
             raise InvalidInput("Время в формате ЧЧ:ММ, либо off")
         return await self.json("POST", "clock", json={"time": value, "brightness": 100})
 
+    async def screen(self, text: str, brightness: int = 100) -> Any:
+        from .display import segment_frame
+        if type(brightness) is not int or not 0 <= brightness <= 255:
+            raise InvalidInput("Яркость: 0–255")
+        status = await self.clock()
+        if status.get("text_available") is True:
+            if not 1 <= len(text) <= 64:
+                raise InvalidInput("Текст экрана: 1–64 символа")
+            return await self.json("POST", "clock/text", json={"text": text, "brightness": brightness})
+        frame = segment_frame(text, brightness, status.get("segments", []))
+        return await self.json("POST", "clock", json={"segments": frame})
+
     async def sensors(self) -> Any:
         await self.device()
         result = await self.json("GET", "sensors")

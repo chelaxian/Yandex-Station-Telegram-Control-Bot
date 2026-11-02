@@ -33,16 +33,78 @@ class Interactions:
         self.calls: dict[str, Session] = {}
         self.guards: dict[str, Session] = {}
         self.lights: dict[str, Session] = {}
+        self.themes: dict[str, Session] = {}
         self.audio_watchers: set[asyncio.Task] = set()
 
     async def close(self) -> None:
-        tasks = [s.task for s in [*self.calls.values(), *self.guards.values(), *self.lights.values()] if s.task] + list(self.audio_watchers)
+        tasks = [s.task for s in [*self.calls.values(), *self.guards.values(), *self.lights.values(), *self.themes.values()] if s.task] + list(self.audio_watchers)
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
         self.calls.clear()
         self.guards.clear()
         self.lights.clear()
+        self.themes.clear()
+
+    async def configure_theme(self, user: int, station: str) -> None:
+        await self.service.store.require(user, "operator")
+        client = self.service.clients[station]
+        old = self.themes.get(station)
+        if old and old.task:
+            old.task.cancel()
+            await asyncio.gather(old.task, return_exceptions=True)
+            self.themes.pop(station, None)
+        settings = await self.service.features.theme_settings(client)
+        if settings["theme"] == "off":
+            return
+        (await client.device()).require("owner.speech.phase.v1")
+        settings["user"] = user
+        import json
+        await asyncio.to_thread(self.service.features.assets.put, "settings", f"theme-{station}.json", json.dumps(settings).encode(), replace=True)
+        session = Session(user, user)
+        self.themes[station] = session
+        session.task = asyncio.create_task(self._theme(station, session), name=f"theme-{station}")
+
+    async def restore_themes(self) -> None:
+        for station, client in self.service.clients.items():
+            settings = await self.service.features.theme_settings(client)
+            user = settings.get("user")
+            if type(user) is int and settings["theme"] != "off":
+                try:
+                    await self.configure_theme(user, station)
+                except BotError as e:
+                    logger.warning("theme_not_restored type=%s", type(e).__name__)
+
+    async def _theme(self, station: str, session: Session) -> None:
+        client, previous, failures = self.service.clients[station], None, 0
+        try:
+            while True:
+                await self.service.store.require(session.user, "operator")
+                try:
+                    event = await client.owner("GET", "phase", request_timeout=3)
+                    phase = event.get("phase")
+                    settings = await self.service.features.theme_settings(client)
+                    if phase in {"listening", "speaking"} and phase != previous and previous is not None and event.get("initial_snapshot") is False:
+                        kind = "ask" if phase == "listening" else "reply"
+                        if settings[kind] and station not in self.calls:
+                            async with client.operation_lock:
+                                await self.service.store.require(session.user, "operator")
+                                if not any(j["state"] in {"queued", "playing"} for j in await client.audio_jobs()):
+                                    await self.service.features.theme_sound(client, kind)
+                    if phase not in {"unknown", "recognition", None}:
+                        previous = phase
+                    failures = 0
+                except BotError:
+                    failures += 1
+                    if failures >= 3:
+                        raise
+                await asyncio.sleep(.25)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.warning("theme_stopped type=%s", type(e).__name__)
+        finally:
+            self.themes.pop(station, None)
 
     def watch_audio(self, message: Message, station: str, job: str) -> None:
         task = asyncio.create_task(self._watch_audio(message, station, job), name=f"audio-{job}")

@@ -53,7 +53,7 @@ async def serve(config: Config) -> None:
             commands = [BotCommand(command=cmd, description=desc) for cmd, desc in [
                 ("menu", "Управление станцией"), ("stations", "Выбор станции"),
                 ("status", "Связь с LUNA"), ("volume", "Громкость"), ("led", "Подсветка"),
-                ("clock", "Часы"), ("health", "Диагностика"), ("record", "Запись по запросу"),
+                ("clock", "Часы"), ("screen", "Экран и яркость"), ("health", "Диагностика"), ("record", "Запись по запросу"),
                 ("timer", "Таймер со звуком"), ("history", "Действия бота"),
                 ("legacy_history", "История прежнего бота"), ("capabilities", "Возможности станции"),
                 ("features", "Статус функций"), ("help", "Справка"),
@@ -67,6 +67,7 @@ async def serve(config: Config) -> None:
             await bot.set_my_commands(commands, scope=BotCommandScopeChat(chat_id=config.owner_id))
             await bot.set_chat_menu_button(chat_id=config.owner_id, menu_button=MenuButtonCommands())
             dispatcher = make_dispatcher(service)
+            await service.interactions.restore_themes()
             timer_task = asyncio.create_task(timer_worker(service, bot), name="durable-timers")
             polling_task = asyncio.create_task(dispatcher.start_polling(
                 bot, allowed_updates=["message", "callback_query"], tasks_concurrency_limit=16),

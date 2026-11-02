@@ -2,7 +2,7 @@
 
 ## Расширение beta 3.0.0b1
 
-Источник: [`46bc6a3`](https://github.com/chelaxian/luna/commit/46bc6a38fbf5aa197e2605c7ca394a980763704a), ветка `feat/telegram-complete-runtime`. Это реализованные HTTP handlers, а не предполагаемые upstream endpoints. Новые маршруты проходят общий browser guard и ограничение тела запроса. Аутентификация admin API не добавлена: требуется loopback или аутентифицирующий proxy.
+Источник: [`0f2393e`](https://github.com/chelaxian/luna/commit/0f2393e4d613472c79755b358abc3047a9466963), ветка `feat/telegram-complete-runtime`. Это реализованные HTTP handlers, а не предполагаемые upstream endpoints. Новые маршруты проходят общий browser guard и ограничение тела запроса. Аутентификация admin API не добавлена: требуется loopback или аутентифицирующий proxy.
 
 | Контракт | Endpoint | Семантика |
 |---|---|---|
@@ -14,6 +14,7 @@
 | Терминал | POST `/api/owner/execute` `{command,timeout}` | Только явно включённый provider; 1–30 секунд, вывод ≤64 КиБ на поток; собственная process group |
 | Скрипт | POST `/api/owner/scripts/run` `{name,source?}` | Только .sh, UTF-8, ≤1 МиБ; временная копия source удаляется после выполнения |
 | Диагностика | GET `/api/owner/system` | Стандартные Linux procfs: RAM, uptime, load, wireless, kernel; без системных изменений |
+| Фазы речи | GET `/api/owner/phase` | owner.speech.phase.v1; только phase/initial_snapshot, без transcript/request ID/account; используется для звуковых тем |
 
 Audio payload не сохраняется после завершения job. Метаданные ограничены 64 записями; при старте незавершённые задания становятся interrupted, аудио удаляется, автоматического replay нет. TTL метаданных 24 часа применяется при старте; в работающем процессе действует ограничение количества. Успешный код выхода ALSA не заменяет слуховую проверку.
 
@@ -29,6 +30,8 @@ Audio payload не сохраняется после завершения job. �
 | Release LED | POST `/api/led/off/{zone}` | та же zone/capability |
 | Часы | GET/POST `/api/clock`, `{time,brightness}` | `available=true`; не вывод по названию модели |
 | Release часов | POST `/api/clock/off` | доступные часы |
+| Сегментный экран | POST `/api/clock`, `{segments:{name:brightness}}` | имена только из GET clock; 0–255; без угадывания нумерации по модели |
+| Текстовый экран | POST `/api/clock/text`, `{text,brightness}` | только text_available=true; на Mini3Pro false, используется ограниченный четырёхзначный алфавит |
 | Датчики | GET `/api/sensors` | массив, `value` может быть null |
 | Микрофоны | GET `/api/microphone/devices` | `microphone.capture` и актуальные channel IDs |
 | WAV | POST `/api/microphone/record`, `{seconds,device?}` | 1–30 с, bounded response, валидный непустой PCM WAV |

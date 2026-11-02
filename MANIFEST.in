@@ -1,0 +1,6 @@
+include CHANGELOG.md NOTICE.md README.md requirements.lock.txt config.example.toml Dockerfile
+recursive-include docs *.md
+recursive-include deploy *.py *.service
+recursive-include scripts *.py
+prune legacy
+global-exclude *.pyc __pycache__

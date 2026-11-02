@@ -59,6 +59,30 @@ async def test_menu_uses_live_capabilities_and_never_mutates(service, bot):
     assert all(b.text != "🕒 Часы" for row in menu.reply_markup.inline_keyboard for b in row)
 
 
+async def test_relative_alarm_is_durable_and_cannot_be_created_by_viewer(service, bot):
+    dp = make_dispatcher(service)
+    before = time.time()
+    await dp.feed_update(bot, update("/alarm 10m"))
+    timers = await service.store.rows("SELECT user_id,due,status FROM timers")
+    assert len(timers) == 1 and timers[0]["user_id"] == 1 and timers[0]["status"] == "pending"
+    assert before + 599 <= timers[0]["due"] <= time.time() + 600
+    await service.store.write("INSERT INTO members VALUES (2,'viewer')")
+    await dp.feed_update(bot, update("/alarm 30s", user=2, mid=2))
+    await dp.feed_update(bot, update("/alarm 99999h", mid=3))
+    assert len(await service.store.rows("SELECT id FROM timers")) == 1
+    assert not service.fakes[0].requests
+
+
+async def test_suggestions_are_visible_only_to_owner(service, bot):
+    await service.store.write("INSERT INTO suggestions VALUES (?,?,?)", (1, "private owner suggestion", time.time()))
+    dp = make_dispatcher(service)
+    await service.store.write("INSERT INTO members VALUES (2,'operator')")
+    await dp.feed_update(bot, update("/suggestions", user=2))
+    assert "private owner suggestion" not in bot.session.sent[-1].text
+    await dp.feed_update(bot, update("/suggestions", mid=2))
+    assert "private owner suggestion" in bot.session.sent[-1].text
+
+
 async def test_unauthorized_and_groups_never_reach_luna(service, bot):
     dp = make_dispatcher(service)
     await dp.feed_update(bot, update("/volume 100", user=99))

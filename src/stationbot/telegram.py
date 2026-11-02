@@ -232,7 +232,14 @@ def make_dispatcher(service: Service) -> Dispatcher:
             from zoneinfo import ZoneInfo
             await service.store.require(user, "operator")
             if len(args) != 1:
-                raise InvalidInput("/alarm ЧЧ:ММ")
+                raise InvalidInput("/alarm ЧЧ:ММ|10m|30s|1h")
+            import re
+            duration = re.fullmatch(r"([0-9]{1,5})([smh])", args[0])
+            if duration:
+                seconds = int(duration[1]) * {"s": 1, "m": 60, "h": 3600}[duration[2]]
+                key = await service.store.timer(user, message.chat.id, station, seconds)
+                await message.answer(f"Будильник {key}: через {seconds} секунд")
+                return
             try:
                 clock = datetime.datetime.strptime(args[0], "%H:%M").time()
                 now = datetime.datetime.now(ZoneInfo(service.config.timezone))
@@ -254,6 +261,9 @@ def make_dispatcher(service: Service) -> Dispatcher:
             except BaseException:
                 await service.store.finish_action(request, "unknown")
                 raise
+        elif command == "suggestions":
+            await service.store.require(user, "owner")
+            await message.answer(format_result(await service.store.rows("SELECT user_id,text,created FROM suggestions ORDER BY created DESC LIMIT 20")))
         elif command == "suggest":
             await service.store.require(user, "operator")
             if not args:
@@ -297,6 +307,8 @@ def make_dispatcher(service: Service) -> Dispatcher:
             action = mapped.get(command, command) if not args else command
             request = f"m:{message.chat.id}:{message.message_id}"
             value = await service.run(user, station, action, args, request)
+            if command == "theme":
+                await service.interactions.configure_theme(user, station)
             await send_result(message, value, command, station)
 
     @router.callback_query()
@@ -329,7 +341,7 @@ def make_dispatcher(service: Service) -> Dispatcher:
             if selected != station:
                 raise InvalidInput("Это меню другой станции. Откройте /menu заново")
             guides = {**GUIDES, "led": "/led ring #00AAFF\n/led ring off — вернуть штатное управление\n/led_effect rainbow|pulse|police|off",
-                      "clock": "/clock 12:34\n/clock off — вернуть управление",
+                      "clock": "/clock 12:34\n/screen 1337|2026|cool|help|cat|uwu|текст\n/screen brightness 0–255\n/screen night\n/clock off — вернуть управление",
                       "record": "/record 10 — запись в личный чат\n/microphones — каналы"}
             await query.message.answer(guides.get(action, HELP))
         elif value.startswith("act:"):

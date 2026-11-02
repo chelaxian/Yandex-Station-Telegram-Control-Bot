@@ -122,3 +122,32 @@ async def test_voice_hangup_uses_verified_transcript_event(service):
     client = SimpleNamespace(json=AsyncMock(return_value={"transcript": "Алиса, отбой!"}))
     await service.interactions._voice_hangup(client, session)
     assert session.end_requested
+
+
+async def test_theme_is_per_station_and_toggles_are_persisted(service):
+    mini, station = service.clients["mini"], service.clients["station"]
+    await service.features.execute(mini, "theme", ["windows"])
+    await service.features.execute(mini, "theme_flags", ["reply", "on"])
+    assert (await service.features.theme_settings(mini))["theme"] == "windows"
+    assert (await service.features.theme_settings(mini))["reply"] is True
+    assert (await service.features.theme_settings(station))["theme"] == "off"
+
+
+async def test_theme_does_not_replay_snapshots_or_repeated_phases(service):
+    import asyncio
+
+    from stationbot.interactions import Session
+    client = service.clients["mini"]
+    await service.features.execute(client, "theme", ["mario"])
+    client.owner = AsyncMock(side_effect=[
+        {"phase": "listening", "initial_snapshot": True},
+        {"phase": "idle", "initial_snapshot": False},
+        {"phase": "listening", "initial_snapshot": False},
+        {"phase": "listening", "initial_snapshot": False},
+        {"phase": "speaking", "initial_snapshot": False}, asyncio.CancelledError(),
+    ])
+    client.audio_jobs = AsyncMock(return_value=[])
+    service.features.theme_sound = AsyncMock(return_value=JOB)
+    with pytest.raises(asyncio.CancelledError):
+        await service.interactions._theme("mini", Session(1, 1))
+    service.features.theme_sound.assert_awaited_once_with(client, "ask")

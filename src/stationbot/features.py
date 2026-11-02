@@ -13,15 +13,15 @@ from .luna import Luna
 GUIDES = {
     "soundboard": "/sounds — список\n/play имя.wav — воспроизвести\nОтправьте MP3/WAV с подписью /sound_add name.wav\n/sound_delete name.wav — удалить\n/stop — остановить",
     "tts": "/tts текст — произнести на выбранной станции\nГолосовое сообщение в чат также воспроизводится на станции.",
-    "theme": "/theme yandex|windows|cyberpunk|portal|mario\n/theme off\nПредпрослушивание: /theme_test",
+    "theme": "/theme yandex|windows|cyberpunk|portal|mario\n/theme off\n/theme_flags ask|reply on|off — звук начала/ответа Алисы\nПредпрослушивание: /theme_test",
     "siren": "/siren 1–30 — сирена указанное число секунд\n/stop — остановить\n/ban — звуковой эффект",
     "backup": "/backup — ZIP настроек/звуков/скриптов\nОтправьте этот ZIP с подписью /restore\n/firmware — список образов; загрузка .img/.bin с подписью /firmware имя.bin\nОбраз сохраняется с SHA-256, как в 2.7; запись разделов не выполняется.",
     "terminal": "/shell команда — терминал станции (владелец)\n/upload_script name.sh — подпись к файлу\n/scripts — список\n/run_script name.sh — выполнить\n/script_delete name.sh — удалить",
     "camera": "/photo — фото камеры хоста\n/video 1–15 — короткое видео\n/guard on|off — детекция изменений изображения\nКамера выбирается владельцем в camera_input; камера на мини-ПК и камера колонки — разные устройства.",
     "call": "/call — начать интерком\n/answer — принять\n/hangup — завершить\nПри активном интеркоме звук комнаты отправляется фрагментами в чат, голосовые и /tts звучат на станции. Лимит 30 минут, как в 2.7. Это не Telegram VoIP.",
     "ask": "/ask текст — вопрос помощнику\n/dialogs — сохранённые диалоги этого бота\n/legacy_history — диалоги прежнего бота",
-    "timer": "/timer секунды — таймер со звуком и уведомлением\n/alarm ЧЧ:ММ — ближайший будильник (часовой пояс хоста)\n/timers\n/cancel_timer ID",
-    "system": "/system — CPU/RAM/uptime/RSSI\n/network — связь и задержка\n/cleanup — временные файлы бота\n/suggest текст — записать предложение",
+    "timer": "/timer секунды — таймер со звуком и уведомлением\n/alarm ЧЧ:ММ|10m|30s|1h — ближайший будильник (часовой пояс из настроек)\n/timers\n/cancel_timer ID",
+    "system": "/system — CPU/RAM/uptime/RSSI\n/network — связь и задержка\n/cleanup — временные файлы бота\n/suggest текст — записать предложение\n/suggestions — прочитать предложения (владелец)",
 }
 
 
@@ -30,8 +30,59 @@ class Features:
         self.assets = Assets(state)
         self.store = store
 
+    async def theme_settings(self, client: Luna) -> dict:
+        defaults = {"theme": "off", "ask": True, "reply": False}
+        try:
+            value = json.loads(await asyncio.to_thread(self.assets.get, "settings", f"theme-{client.config.id}.json"))
+            if not isinstance(value, dict) or value.get("theme") not in {*audio.THEMES, "off"}:
+                raise InvalidInput("Некорректная тема")
+            if any(type(value.get(k, defaults[k])) is not bool for k in ["ask", "reply"]):
+                raise InvalidInput("Некорректные переключатели темы")
+            return {**defaults, **value}
+        except (InvalidInput, ValueError, TypeError):
+            return defaults
+
+    async def theme_sound(self, client: Luna, kind: str) -> dict | str:
+        settings = await self.theme_settings(client)
+        name = settings["theme"]
+        if name == "off":
+            return "Звуковая тема выключена"
+        # Preserve the owner's imported 2.7 sounds privately when present.
+        samples = {"windows": ("winxp.wav", "win_error.wav"), "cyberpunk": ("discord.wav", "vine_boom.wav"),
+                   "portal": ("what.wav", "metal_pipe.wav"), "mario": ("airhorn.wav", "bruh.wav"),
+                   "yandex": ("call_connected.wav", "call_ended.wav")}
+        try:
+            source = await asyncio.to_thread(self.assets.get, "sounds", samples[name][kind == "reply"])
+            sound = await audio.convert(source)
+        except InvalidInput:
+            sound = await asyncio.to_thread(audio.effect, name, 1)
+        return await client.play(sound, "theme-" + uuid.uuid4().hex)
+
     async def execute(self, client: Luna, action: str, args: list[str], payload: bytes | None = None) -> Any:
         key = uuid.uuid4().hex
+        if action == "screen":
+            from .display import PRESETS
+            name = f"screen-{client.config.id}.json"
+            try:
+                settings = json.loads(await asyncio.to_thread(self.assets.get, "settings", name))
+                text, brightness = str(settings["text"]), int(settings["brightness"])
+            except (InvalidInput, ValueError, TypeError, KeyError):
+                text, brightness = "1337", 100
+            if not args:
+                return "/screen 1337|2026|cool|help|cat|uwu|текст\n/screen brightness 0–255\n/screen night — яркость 25\n/screen off — вернуть экран Алисе"
+            if args == ["off"]:
+                return await client.clock("off")
+            if args == ["night"]:
+                brightness = 25
+            elif args[0] == "brightness":
+                if len(args) != 2 or not args[1].isascii() or not args[1].isdigit():
+                    raise InvalidInput("/screen brightness 0–255")
+                brightness = int(args[1])
+            else:
+                text = PRESETS.get(" ".join(args).lower(), " ".join(args))
+            result = await client.screen(text, brightness)
+            await asyncio.to_thread(self.assets.put, "settings", name, json.dumps({"text": text, "brightness": brightness}).encode(), replace=True)
+            return result
         if action == "play_upload":
             if payload is None:
                 raise InvalidInput("Нужно аудиовложение")
@@ -63,12 +114,14 @@ class Features:
             return await client.play(await audio.tts(" ".join(args)), key)
         if action in {"siren", "ban", "theme_test"}:
             if action == "theme_test":
+                return await self.theme_sound(client, "ask")
+            elif action == "ban":
                 try:
-                    name = json.loads(await asyncio.to_thread(self.assets.get, "settings", "theme.json"))["theme"]
-                except (InvalidInput, KeyError, ValueError):
-                    name = "yandex"
-                if name == "off":
-                    return "Звуковая тема выключена"
+                    sound = await asyncio.to_thread(self.assets.get, "sounds", "fake_ban.wav")
+                    sound = await audio.convert(sound)
+                except InvalidInput:
+                    sound = await audio.tts("Доступ к станции заблокирован. Это розыгрыш.")
+                return await client.play(sound, key)
             else:
                 name = action
             if action == "siren" and args and (len(args) != 1 or not args[0].isdigit()):
@@ -76,10 +129,21 @@ class Features:
             seconds = int(args[0]) if action == "siren" and args else 3
             return await client.play(await asyncio.to_thread(audio.effect, name, seconds), key)
         if action == "theme":
+            if args == ["retro"]:
+                args = ["mario"]
             if len(args) != 1 or args[0] not in {*audio.THEMES, "off"}:
                 raise InvalidInput("/theme yandex|windows|cyberpunk|portal|mario|off")
-            await asyncio.to_thread(self.assets.put, "settings", "theme.json", json.dumps({"theme": args[0]}).encode(), replace=True)
-            return "Тема сохранена; /theme_test — прослушать"
+            settings = await self.theme_settings(client)
+            settings["theme"] = args[0]
+            await asyncio.to_thread(self.assets.put, "settings", f"theme-{client.config.id}.json", json.dumps(settings).encode(), replace=True)
+            return "Тема сохранена; /theme_test — прослушать; /theme_flags ask|reply on|off"
+        if action == "theme_flags":
+            if len(args) != 2 or args[0] not in {"ask", "reply"} or args[1] not in {"on", "off"}:
+                raise InvalidInput("/theme_flags ask|reply on|off")
+            settings = await self.theme_settings(client)
+            settings[args[0]] = args[1] == "on"
+            await asyncio.to_thread(self.assets.put, "settings", f"theme-{client.config.id}.json", json.dumps(settings).encode(), replace=True)
+            return "Переключатели звуков темы обновлены"
         if action == "stop":
             return {"cancellation_requested": await client.stop_audio()}
         if action == "audio_jobs":

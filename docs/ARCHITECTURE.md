@@ -25,4 +25,4 @@ flowchart LR
 
 ## Дальнейшие границы
 
-Privileged maintenance, VoIP, camera и synthesis/playback следует оформлять отдельными provider-модулями с явным контрактом, capability negotiation, лимитами и квалификацией каждой модели. Shell fallback, универсальная запись разделов и обход rootfs read-only не являются допустимой подменой отсутствующего API. До реализации provider функция остаётся `blocked` в реестре, а не выдаёт фиктивный успех.
+Privileged maintenance, VoIP, camera и synthesis/playback следует оформлять отдельными provider-модулями с явным контрактом, capability negotiation, лимитами и квалификацией каждой модели. Shell fallback, универсальная запись разделов и обход rootfs read-only не являются допустимой подменой отсутствующего API. Реализованные audio jobs и owner tools описаны в LUNA_CONTRACT.md; камера/конвертация/TTS — модули хоста. Наличие provider не отменяет проверки конечного результата. Штатный музыкальный provider и автономная упаковка остаются partial.

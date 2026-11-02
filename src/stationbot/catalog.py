@@ -13,7 +13,7 @@ class Feature:
 FEATURES = (
     Feature("Громкость", "/volume", "implemented", "ALSA capability и живой ответ LUNA"),
     Feature("Подсветка", "/led", "implemented", "ring/logo по topology, release через LUNA"),
-    Feature("Часы", "/clock", "implemented", "Только при clock.available=true; без выдуманной бегущей строки"),
+    Feature("Часы / экран", "/clock · /screen", "implemented", "Пресеты, текст поддерживаемого алфавита, яркость/ночь; сегменты только из живой topology"),
     Feature("Диагностика", "/health · /system", "implemented", "Датчики и opted-in owner/system: RAM, load, uptime, wireless"),
     Feature("Запись комнаты", "/record", "implemented", "1–30 секунд, только operator/owner, WAV только в памяти"),
     Feature("Плеер", "/media", "partial", "Только зарегистрированные медиапровайдеры, не штатный плеер Алисы"),
@@ -24,7 +24,7 @@ FEATURES = (
     Feature("Проверка сети", "/network", "implemented", "Доступность/RTT LUNA; ограничения интернета колонки сохраняются"),
     Feature("Интерком (назван VoIP в 2.7)", "/call · /answer · /hangup", "implemented", "Фрагменты комнаты, голосовой приём, предел 30 минут; не Telegram calls"),
     Feature("Саундборд / голосовое / TTS", "/sounds · /play · /tts", "implemented", "ffmpeg/espeak-ng на хосте; audio.jobs.v1 с конечным результатом и очисткой"),
-    Feature("Темы / сирена / фейковый бан", "/theme · /siren · /ban · /stop", "implemented", "Синтезированные темы, без сторонних звуковых лицензий"),
+    Feature("Темы / сирена / фейковый бан", "/theme · /siren · /ban · /stop", "implemented", "Автоматические темы по owner.speech.phase.v1, импортированные личные звуки или синтез"),
     Feature("Спросить помощника", "/ask", "implemented", "Как в 2.7: локальные намерения и энциклопедия; не облачная Алиса"),
     Feature("История диалогов", "/dialogs · /legacy_history", "implemented", "Диалоги помощника и read-only прежняя история"),
     Feature("Камера / фото / видео / охрана", "/photo · /video · /guard", "implemented", "Явно настроенная камера хоста, как в 2.7; не несуществующая камера колонки"),
