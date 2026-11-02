@@ -5,6 +5,7 @@ import asyncio
 import io
 import os
 import re
+import uuid
 import wave
 from dataclasses import dataclass
 from typing import Any
@@ -14,7 +15,7 @@ import httpx
 from .config import StationConfig
 from .errors import InvalidInput, TransportError, Unavailable
 
-CONTRACT_COMMIT = "3858d133a856adf35bb3af7eba0f91f1284bf987"
+CONTRACT_COMMIT = "46bc6a38fbf5aa197e2605c7ca394a980763704a"
 MAX_JSON = 1024 * 1024
 MAX_RECORDING = 12 * 1024 * 1024
 
@@ -199,6 +200,58 @@ class Luna:
         if not d.features.intersection({"audio.play.aplay", "audio.play.mediad"}):
             raise Unavailable("LUNA не объявляет аудиовыход")
         return await self.json("POST", "audio/test", request_timeout=20)
+
+    async def play(self, wav: bytes, key: str) -> dict:
+        (await self.device()).require("audio.jobs.v1")
+        if not 44 <= len(wav) <= 64 * 1024 * 1024:
+            raise InvalidInput("Аудио: WAV до 64 МиБ")
+        result = await self.json("POST", "audio/jobs", content=wav,
+                               headers={"Content-Type": "audio/wav", "Idempotency-Key": key},
+                               request_timeout=60)
+        return self.audio_job(result)
+
+    @staticmethod
+    def audio_job(value: Any) -> dict:
+        try:
+            uuid.UUID(value["id"])
+            if value["state"] not in {"queued", "playing", "succeeded", "failed", "cancelled", "interrupted"}:
+                raise ValueError
+            if value["cleanup"] not in {"pending", "complete", "failed"}:
+                raise ValueError
+            return value
+        except (ValueError, KeyError, TypeError, AttributeError) as e:
+            raise TransportError("Некорректный результат аудиозадания") from e
+
+    async def audio_status(self, job: str) -> dict:
+        try:
+            uuid.UUID(job)
+        except ValueError as e:
+            raise InvalidInput("Некорректный ID аудиозадания") from e
+        return self.audio_job(await self.json("GET", f"audio/jobs/{job}"))
+
+    async def audio_jobs(self) -> list[dict]:
+        (await self.device()).require("audio.jobs.v1")
+        result = await self.json("GET", "audio/jobs")
+        if not isinstance(result, list):
+            raise TransportError("Некорректный журнал воспроизведения")
+        return [self.audio_job(item) for item in result]
+
+    async def stop_audio(self) -> list[dict]:
+        jobs = await self.audio_jobs()
+        return [await self.json("POST", f"audio/jobs/{j['id']}/cancel")
+                for j in jobs if j.get("state") in {"queued", "playing"}]
+
+    async def owner(self, method: str, path: str, **kwargs: Any) -> Any:
+        if not self.config.allow_owner_tools:
+            raise Unavailable("Инструменты владельца выключены в настройках станции")
+        (await self.device()).require("owner.tools.v1")
+        return await self.json(method, f"owner/{path}", **kwargs)
+
+    async def shell(self, command: str) -> Any:
+        if not command or len(command) > 4096:
+            raise InvalidInput("Команда терминала: 1–4096 символов")
+        return await self.owner("POST", "execute", json={"command": command, "timeout": 15},
+                                request_timeout=20)
 
     async def plugins(self) -> list[dict]:
         await self.device()

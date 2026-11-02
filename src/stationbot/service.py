@@ -8,11 +8,13 @@ from typing import Any
 from .catalog import parity_text
 from .config import Config
 from .errors import BotError, InvalidInput, TransportError, Unavailable
+from .features import Features
+from .interactions import Interactions
 from .luna import Luna
 from .store import Store
 
 READ_ONLY = {"status", "health", "capabilities", "volume_get", "clock_get", "plugins", "media_get"}
-OWNER_ONLY = {"invoke"}
+OWNER_ONLY = {"invoke", "shell", "run_script", "custom", "custom_add", "upload_script", "script_delete", "firmware", "backup", "restore", "restore_legacy", "cleanup", "sound_delete", "discover"}
 
 
 class Service:
@@ -21,12 +23,14 @@ class Service:
         self.started_at = int(time.time())
         self.last_request: OrderedDict[int, float] = OrderedDict()
         self.active: set[int] = set()
+        self.features = Features(config.state_dir, store)
+        self.interactions = Interactions(self)
 
     async def station_for(self, user: int) -> str:
         station = await self.store.selected(user, self.config.stations[0].id)
         return station if station in self.clients else self.config.stations[0].id
 
-    async def run(self, user: int, station: str, action: str, args: list[str], request: str) -> Any:
+    async def run(self, user: int, station: str, action: str, args: list[str], request: str, payload: bytes | None = None) -> Any:
         if station not in self.clients:
             raise InvalidInput("Неизвестная станция")
         minimum = "viewer" if action in READ_ONLY else "owner" if action in OWNER_ONLY else "operator"
@@ -48,8 +52,8 @@ class Service:
                 async with client.operation_lock:
                     # Revocation while queued must take effect before touching the station.
                     await self.store.require(user, minimum)
-                    result = await self._execute(client, action, args)
-                status = "accepted" if isinstance(result, dict) and result.get("status") == "accepted" else "ok"
+                    result = await self._execute(client, action, args, payload)
+                status = "accepted" if isinstance(result, dict) and (result.get("status") == "accepted" or result.get("state") in {"queued", "playing"}) else "ok"
                 await self.store.finish_action(request, status)
                 return result
             except TransportError:
@@ -64,7 +68,10 @@ class Service:
         finally:
             self.active.discard(user)
 
-    async def _execute(self, client: Luna, action: str, args: list[str]) -> Any:
+    async def _execute(self, client: Luna, action: str, args: list[str], payload: bytes | None = None) -> Any:
+        extra = await self.features.execute(client, action, args, payload)
+        if extra is not NotImplemented:
+            return extra
         if action == "capabilities":
             d = await client.device()
             return {"model": d.model, "architecture": d.architecture, "features": sorted(d.features),
@@ -128,11 +135,28 @@ HELP = """Yandex Station Telegram Control Bot
 /media [pause|resume|next|previous] — медиапровайдер
 /plugins — установленные пакеты
 /invoke id — запуск пакета (владелец)
-/timer секунды — уведомление в Telegram
+/timer секунды — звук и уведомление в Telegram
+/alarm ЧЧ:ММ — ближайший будильник по времени хоста
 /timers — ваши таймеры
 /cancel_timer id — отмена своего таймера
 /history — журнал действий
 /legacy_history — сохранённая история прежнего бота (владелец)
+/tts текст — произнести на станции
+/sounds · /play имя.wav · /stop · /audio_jobs
+/sound_add имя.wav — подпись к MP3/WAV
+/theme yandex|windows|cyberpunk|portal|mario|off
+/theme_test · /siren 1–30 · /ban
+/call · /answer · /hangup — интерком до 30 минут
+/backup — резервная копия; /restore — подпись к ZIP
+/firmware имя.bin — подпись к образу (.img/.bin), без flash
+/shell команда — терминал владельца
+/upload_script имя.sh — подпись к скрипту
+/scripts · /run_script имя.sh · /custom имя.sh
+/photo · /video 1–15 · /guard on|off — камера хоста
+/ask текст · /dialogs — локальный помощник и его история
+/led_effect rainbow|pulse|police|off
+/system · /network · /cleanup · /discover подсеть/24
+/suggest текст — сохранить предложение
 /features — статус переноса всех функций
 /access — управление доступом (владелец)
 /help — эта справка

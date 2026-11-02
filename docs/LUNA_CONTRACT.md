@@ -1,5 +1,24 @@
 # Проверенный контракт LUNA
 
+## Расширение beta 3.0.0b1
+
+Источник: [`46bc6a3`](https://github.com/chelaxian/luna/commit/46bc6a38fbf5aa197e2605c7ca394a980763704a), ветка `feat/telegram-complete-runtime`. Это реализованные HTTP handlers, а не предполагаемые upstream endpoints. Новые маршруты проходят общий browser guard и ограничение тела запроса. Аутентификация admin API не добавлена: требуется loopback или аутентифицирующий proxy.
+
+| Контракт | Endpoint | Семантика |
+|---|---|---|
+| audio.jobs.v1 | POST `/api/audio/jobs` | WAV ≤64 МиБ/600 секунд; обязательный Idempotency-Key; один активный job; 202 не означает завершение |
+| Журнал/результат | GET `/api/audio/jobs`, GET `/api/audio/jobs/{uuid}` | queued/playing/succeeded/failed/cancelled/interrupted и отдельный cleanup |
+| Отмена | POST `/api/audio/jobs/{uuid}/cancel` | Завершает только собственный aplay; конечный статус читать отдельно |
+| Удаление метаданных | DELETE `/api/audio/jobs/{uuid}` | Только terminal job; payload очищается автоматически после выхода |
+| Owner files | GET `/api/owner/files`; GET/POST/DELETE `/api/owner/files/{scripts,firmware}/{name}` | Явное `LUNA_ENABLE_OWNER_TOOLS=1`; плоские проверенные имена; create-only, SHA-256, квота; firmware всегда flashed=false |
+| Терминал | POST `/api/owner/execute` `{command,timeout}` | Только явно включённый provider; 1–30 секунд, вывод ≤64 КиБ на поток; собственная process group |
+| Скрипт | POST `/api/owner/scripts/run` `{name,source?}` | Только .sh, UTF-8, ≤1 МиБ; временная копия source удаляется после выполнения |
+| Диагностика | GET `/api/owner/system` | Стандартные Linux procfs: RAM, uptime, load, wireless, kernel; без системных изменений |
+
+Audio payload не сохраняется после завершения job. Метаданные ограничены 64 записями; при старте незавершённые задания становятся interrupted, аудио удаляется, автоматического replay нет. TTL метаданных 24 часа применяется при старте; в работающем процессе действует ограничение количества. Успешный код выхода ALSA не заменяет слуховую проверку.
+
+`allow_owner_tools=true` в bot config также обязателен; терминал/скрипты/образы доступны только owner. Это полномочный root-shell на выбранной колонке, не песочница для чужих скриптов. Не открывать owner API в LAN/WAN без внешней аутентификации.
+
 Срез 02.11.2026: `3858d133a856adf35bb3af7eba0f91f1284bf987`, [источники](https://github.com/chelaxian/luna/tree/3858d133a856adf35bb3af7eba0f91f1284bf987), upstream base `e6a4b3abfe9631d6cea619ecc1c38d6b8a1315c6`. Консультация с сессией LUNA сверена с `src/gateway.rs`, `src/audio.rs`, station crates и предыдущими аппаратными отчётами. Это HTTP JSON, не WebSocket или Python SDK.
 
 | Функция | Endpoint | Проверка перед действием |

@@ -54,9 +54,15 @@ async def serve(config: Config) -> None:
                 ("menu", "Управление станцией"), ("stations", "Выбор станции"),
                 ("status", "Связь с LUNA"), ("volume", "Громкость"), ("led", "Подсветка"),
                 ("clock", "Часы"), ("health", "Диагностика"), ("record", "Запись по запросу"),
-                ("timer", "Таймер Telegram"), ("history", "Действия бота"),
+                ("timer", "Таймер со звуком"), ("history", "Действия бота"),
                 ("legacy_history", "История прежнего бота"), ("capabilities", "Возможности станции"),
-                ("features", "Статус функций"), ("help", "Справка")]]
+                ("features", "Статус функций"), ("help", "Справка"),
+                ("tts", "Текст на колонку"), ("sounds", "Саундборд"), ("stop", "Остановить звук"),
+                ("theme", "Звуковые темы"), ("call", "Интерком"), ("hangup", "Завершить интерком"),
+                ("alarm", "Будильник"), ("backup", "Резервная копия"), ("shell", "Терминал владельца"),
+                ("scripts", "Сохранённые скрипты"), ("photo", "Фото камеры хоста"), ("video", "Видео камеры хоста"),
+                ("guard", "Охрана камеры"), ("ask", "Локальный помощник"), ("dialogs", "Диалоги помощника"),
+                ("network", "Проверить соединение"), ("system", "Диагностика системы"), ("cleanup", "Очистить временные файлы")]]
             await bot.set_my_commands(commands)
             await bot.set_my_commands(commands, scope=BotCommandScopeChat(chat_id=config.owner_id))
             await bot.set_chat_menu_button(chat_id=config.owner_id, menu_button=MenuButtonCommands())
@@ -71,6 +77,7 @@ async def serve(config: Config) -> None:
                 for task in done:
                     task.result()
             finally:
+                await service.interactions.close()
                 timer_task.cancel()
                 polling_task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):

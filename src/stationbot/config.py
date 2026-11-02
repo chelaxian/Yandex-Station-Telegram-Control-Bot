@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 try:
     import tomllib
@@ -23,9 +24,11 @@ class StationConfig:
     expected_model: str
     token_env: str = ""
     allow_packages: bool = False
+    allow_owner_tools: bool = False
+    camera_input: str = field(default="", repr=False)
 
     def __post_init__(self) -> None:
-        if not isinstance(self.allow_packages, bool):
+        if not isinstance(self.allow_packages, bool) or not isinstance(self.allow_owner_tools, bool):
             raise InvalidInput("allow_packages должен быть TOML boolean")
         if not re.fullmatch(r"[a-z0-9_-]{1,24}", self.id):
             raise InvalidInput("station.id: нужны 1–24 латинских символа, цифры, _ или -")
@@ -56,6 +59,7 @@ class Config:
     audit_days: int = 30
     telegram_proxy_env: str = ""
     legacy_history_dir: Path | None = field(default=None, repr=False)
+    timezone: str = "UTC"
 
     def __post_init__(self) -> None:
         if self.owner_id <= 0 or not self.stations:
@@ -64,6 +68,10 @@ class Config:
             raise InvalidInput("Повторяющиеся station.id")
         if not 0.1 <= self.rate_seconds <= 60 or not 1 <= self.audit_days <= 365:
             raise InvalidInput("Некорректные rate_seconds или audit_days")
+        try:
+            ZoneInfo(self.timezone)
+        except (ZoneInfoNotFoundError, ValueError) as e:
+            raise InvalidInput("Неизвестный часовой пояс timezone") from e
 
     @classmethod
     def load(cls, path: Path) -> Config:
@@ -79,6 +87,7 @@ class Config:
                 audit_days=int(settings.get("audit_days", 30)),
                 telegram_proxy_env=settings.get("telegram_proxy_env", ""),
                 legacy_history_dir=(path.parent / settings["legacy_history_dir"]).resolve() if settings.get("legacy_history_dir") else None,
+                timezone=settings.get("timezone", "UTC"),
             )
         except (KeyError, TypeError, ValueError, OSError) as e:
             raise InvalidInput("Не удалось прочитать конфигурацию; проверьте config.example.toml") from e

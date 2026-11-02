@@ -37,4 +37,5 @@ ruff==0.17.3
 tomli==2.5.0
 typing-inspection==0.4.4
 typing_extensions==4.16.0
+tzdata==2026.6
 yarl==1.25.1

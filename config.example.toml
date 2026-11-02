@@ -4,6 +4,7 @@ token_env = "TELEGRAM_BOT_TOKEN"
 state_dir = "state"
 rate_seconds = 1.0
 audit_days = 30
+timezone = "Europe/Istanbul"
 # Optional: an existing Telegram egress proxy, kept outside the repository.
 # telegram_proxy_env = "TELEGRAM_PROXY_URL"
 # Optional read-only access to your old per-station action journals.
@@ -16,6 +17,10 @@ label = "Гостиная"
 url = "http://127.0.0.1:18200/api"
 expected_model = "yandexstation_2"
 allow_packages = false
+# Requires LUNA_ENABLE_OWNER_TOOLS=1 in the station runtime; owner-only shell/scripts.
+allow_owner_tools = false
+# Optional HOST camera device or RTSP source; never guessed from the station model.
+# camera_input = "/dev/video0"
 
 [[stations]]
 id = "desk"

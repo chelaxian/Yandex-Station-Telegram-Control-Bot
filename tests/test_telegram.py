@@ -68,9 +68,9 @@ async def test_unauthorized_and_groups_never_reach_luna(service, bot):
     assert not bot.session.sent
 
 
-async def test_unavailable_function_has_no_fallback_shell(service, bot):
+async def test_firmware_inventory_does_not_flash_or_use_shell(service, bot):
     await make_dispatcher(service).feed_update(bot, update("/firmware"))
-    assert "не реализована" in bot.session.sent[-1].text
+    assert bot.session.sent[-1].text == "[]"
     assert not service.fakes[0].requests
 
 

@@ -41,6 +41,8 @@ class Store:
                 user_id INTEGER PRIMARY KEY, username TEXT NOT NULL, role TEXT NOT NULL,
                 created REAL NOT NULL);
             CREATE TABLE IF NOT EXISTS selection (user_id INTEGER PRIMARY KEY, station TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS suggestions (user_id INTEGER NOT NULL, text TEXT NOT NULL, created REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS dialogs (station TEXT NOT NULL, question TEXT NOT NULL, answer TEXT NOT NULL, created REAL NOT NULL);
             CREATE TABLE IF NOT EXISTS actions (
                 request_id TEXT PRIMARY KEY, user_id INTEGER NOT NULL, station TEXT NOT NULL,
                 action TEXT NOT NULL, status TEXT NOT NULL, created REAL NOT NULL);
