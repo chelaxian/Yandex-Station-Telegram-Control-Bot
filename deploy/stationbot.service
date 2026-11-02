@@ -1,0 +1,29 @@
+[Unit]
+Description=Yandex Station Telegram Control Bot
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=stationbot
+Group=stationbot
+WorkingDirectory=/opt/stationbot
+EnvironmentFile=/etc/stationbot/secrets.env
+ExecStart=/opt/stationbot/.venv/bin/python -m stationbot --config /etc/stationbot/config.toml run
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=45
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+StateDirectory=stationbot
+ReadWritePaths=/var/lib/stationbot
+MemoryMax=256M
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target
