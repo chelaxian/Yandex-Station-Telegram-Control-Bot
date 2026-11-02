@@ -77,3 +77,33 @@ async def test_invitation_cannot_be_approved_twice_concurrently(store):
     outcomes = await asyncio.gather(store.approve(1, 2), store.approve(1, 3), return_exceptions=True)
     assert sum(isinstance(o, InvalidInput) for o in outcomes) == 1
     assert len(await store.rows("SELECT * FROM members")) == 1
+
+
+async def test_revocation_while_queued_prevents_station_write(service):
+    await service.store.write("INSERT INTO members VALUES (2,'operator')")
+    lock = service.clients["mini"].operation_lock
+    await lock.acquire()
+    queued = asyncio.create_task(service.run(2, "mini", "volume", ["10"], "queued"))
+    # Wait until the durable intent is written and the task is queued on the station lock.
+    for _ in range(100):
+        if await service.store.rows("SELECT * FROM actions WHERE request_id='queued'"):
+            break
+        await asyncio.sleep(0.001)
+    await service.store.revoke(1, 2)
+    lock.release()
+    with pytest.raises(Forbidden):
+        await queued
+    assert service.fakes[0].requests == []
+
+
+async def test_one_busy_station_does_not_block_another(service):
+    await service.store.write("INSERT INTO members VALUES (2,'operator')")
+    lock = service.clients["mini"].operation_lock
+    await lock.acquire()
+    queued = asyncio.create_task(service.run(1, "mini", "volume", ["10"], "busy"))
+    try:
+        result = await asyncio.wait_for(service.run(2, "station", "volume_get", [], "independent"), 2)
+        assert result["percent"] == 20
+    finally:
+        lock.release()
+        await queued
