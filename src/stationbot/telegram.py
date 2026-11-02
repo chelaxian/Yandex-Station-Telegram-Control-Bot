@@ -17,6 +17,7 @@ from aiogram.types import (
 )
 
 from .errors import BotError, Forbidden, InvalidInput
+from .legacy_history import read_legacy_history
 from .service import HELP, Service, feature_help, format_result
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,10 @@ class AccessMiddleware(BaseMiddleware):
                 await event.answer("Только личный чат", show_alert=True)
             return None
         try:
+            # Switching from MTProto/another poller can expose a Bot API backlog.
+            # Never replay old physical commands after deployment or restart.
+            if isinstance(event, Message) and event.date.timestamp() < self.service.started_at:
+                return None
             role = await self.service.store.role(user.id)
             if role is None:
                 # Only invited identities may create a claim. No automatic username authorization.
@@ -146,8 +151,15 @@ def make_dispatcher(service: Service) -> Dispatcher:
             await message.answer(HELP)
         elif command == "features":
             await message.answer(feature_help())
-        elif command == "stations":
-            await stations(message)
+        elif command in {"stations", "station"}:
+            if args:
+                if len(args) != 1 or args[0] not in service.clients:
+                    raise InvalidInput("Неизвестная станция; используйте /stations")
+                await service.store.select(user, args[0])
+                title, buttons = await main_menu(service, user)
+                await message.answer(title, reply_markup=buttons)
+            else:
+                await stations(message)
         elif command == "access":
             await access(message, user)
         elif command == "grant":
@@ -167,6 +179,9 @@ def make_dispatcher(service: Service) -> Dispatcher:
             history = await service.store.rows(
                 "SELECT station,action,status,created FROM actions WHERE user_id=? ORDER BY created DESC LIMIT 20", (user,))
             await message.answer(format_result(history))
+        elif command == "legacy_history":
+            await service.store.require(user, "owner")
+            await message.answer(await asyncio.to_thread(read_legacy_history, service.config.legacy_history_dir, station))
         elif command == "timer":
             await service.store.require(user, "operator")
             if len(args) != 1 or not args[0].isascii() or not args[0].isdigit():
@@ -183,6 +198,10 @@ def make_dispatcher(service: Service) -> Dispatcher:
             await service.store.write("UPDATE timers SET status='cancelled' WHERE id=? AND user_id=? AND status='pending'", (args[0], user))
             await message.answer("Запрос отмены своего таймера обработан")
         else:
+            if command == "listen" and not args:
+                command, args = "record", ["10"]
+            elif command == "system":
+                command = "health"
             mapped = {"volume": "volume_get", "clock": "clock_get", "media": "media_get"}
             action = mapped.get(command, command) if not args else command
             request = f"m:{message.chat.id}:{message.message_id}"

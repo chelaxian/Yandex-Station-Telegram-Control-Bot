@@ -4,6 +4,10 @@ token_env = "TELEGRAM_BOT_TOKEN"
 state_dir = "state"
 rate_seconds = 1.0
 audit_days = 30
+# Optional: an existing Telegram egress proxy, kept outside the repository.
+# telegram_proxy_env = "TELEGRAM_PROXY_URL"
+# Optional read-only access to your old per-station action journals.
+# legacy_history_dir = "/opt/previous-bot"
 
 # Use your existing SSH tunnels. These example ports DO NOT create a connection.
 [[stations]]

@@ -18,6 +18,7 @@ OWNER_ONLY = {"invoke"}
 class Service:
     def __init__(self, config: Config, store: Store, clients: dict[str, Luna]):
         self.config, self.store, self.clients = config, store, clients
+        self.started_at = int(time.time())
         self.last_request: OrderedDict[int, float] = OrderedDict()
         self.active: set[int] = set()
 
@@ -131,6 +132,7 @@ HELP = """Yandex Station Telegram Control Bot
 /timers — ваши таймеры
 /cancel_timer id — отмена своего таймера
 /history — журнал действий
+/legacy_history — сохранённая история прежнего бота (владелец)
 /features — статус переноса всех функций
 /access — управление доступом (владелец)
 /help — эта справка

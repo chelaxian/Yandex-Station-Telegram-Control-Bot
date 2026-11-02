@@ -54,6 +54,8 @@ class Config:
     token_env: str = "TELEGRAM_BOT_TOKEN"
     rate_seconds: float = 1.0
     audit_days: int = 30
+    telegram_proxy_env: str = ""
+    legacy_history_dir: Path | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if self.owner_id <= 0 or not self.stations:
@@ -75,6 +77,8 @@ class Config:
                 token_env=settings.get("token_env", "TELEGRAM_BOT_TOKEN"),
                 rate_seconds=float(settings.get("rate_seconds", 1)),
                 audit_days=int(settings.get("audit_days", 30)),
+                telegram_proxy_env=settings.get("telegram_proxy_env", ""),
+                legacy_history_dir=(path.parent / settings["legacy_history_dir"]).resolve() if settings.get("legacy_history_dir") else None,
             )
         except (KeyError, TypeError, ValueError, OSError) as e:
             raise InvalidInput("Не удалось прочитать конфигурацию; проверьте config.example.toml") from e
@@ -84,3 +88,12 @@ class Config:
         if not re.fullmatch(r"\d{5,15}:[A-Za-z0-9_-]{20,}", token):
             raise InvalidInput("Задайте токен бота в переменной окружения token_env")
         return token
+
+    def telegram_proxy(self) -> str | None:
+        if not self.telegram_proxy_env:
+            return None
+        proxy = os.environ.get(self.telegram_proxy_env, "")
+        u = urlsplit(proxy)
+        if u.scheme not in {"http", "socks5"} or not u.hostname:
+            raise InvalidInput("Не задан корректный Telegram proxy в telegram_proxy_env")
+        return proxy

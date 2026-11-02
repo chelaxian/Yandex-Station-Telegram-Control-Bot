@@ -35,6 +35,7 @@ async def doctor(config: Config) -> int:
 
 async def serve(config: Config) -> None:
     from aiogram import Bot
+    from aiogram.client.session.aiohttp import AiohttpSession
     from aiogram.types import BotCommand
 
     from .service import Service
@@ -48,10 +49,14 @@ async def serve(config: Config) -> None:
         for station in config.stations:
             clients[station.id] = Luna(station)
         service = Service(config, store, clients)
-        async with Bot(config.token()) as bot:
+        async with Bot(config.token(), session=AiohttpSession(proxy=config.telegram_proxy())) as bot:
             await bot.set_my_commands([BotCommand(command=cmd, description=desc) for cmd, desc in [
                 ("menu", "Управление станцией"), ("stations", "Выбор станции"),
-                ("features", "Возможности и ограничения"), ("help", "Справка")]])
+                ("status", "Связь с LUNA"), ("volume", "Громкость"), ("led", "Подсветка"),
+                ("clock", "Часы"), ("health", "Диагностика"), ("record", "Запись по запросу"),
+                ("timer", "Таймер Telegram"), ("history", "Действия бота"),
+                ("legacy_history", "История прежнего бота"), ("capabilities", "Возможности станции"),
+                ("features", "Статус функций"), ("help", "Справка")]])
             dispatcher = make_dispatcher(service)
             timer_task = asyncio.create_task(timer_worker(service, bot), name="durable-timers")
             polling_task = asyncio.create_task(dispatcher.start_polling(
