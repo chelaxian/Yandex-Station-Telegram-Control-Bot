@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import time
 from collections import OrderedDict
 from typing import Any
@@ -36,12 +35,14 @@ class Service:
         minimum = "viewer" if action in READ_ONLY else "owner" if action in OWNER_ONLY else "operator"
         await self.store.require(user, minimum)
         now = time.monotonic()
-        if user in self.active or now - self.last_request.get(user, -1e6) < self.config.rate_seconds:
+        navigation = action in READ_ONLY | {"sounds", "scripts", "firmware", "microphones", "audio_jobs", "network", "system", "fastfetch"} and payload is None
+        if user in self.active or (not navigation and now - self.last_request.get(user, -1e6) < self.config.rate_seconds):
             raise InvalidInput("Дождитесь завершения предыдущей команды")
-        self.last_request[user] = now
-        self.last_request.move_to_end(user)
-        if len(self.last_request) > 1024:
-            self.last_request.popitem(last=False)
+        if not navigation:
+            self.last_request[user] = now
+            self.last_request.move_to_end(user)
+            if len(self.last_request) > 1024:
+                self.last_request.popitem(last=False)
         self.active.add(user)
         try:
             if not await self.store.begin_action(request, user, station, action):
@@ -164,12 +165,6 @@ HELP = """Yandex Station Telegram Control Bot
 /help — эта справка
 
 Управление только в личном чате. Перед записью убедитесь, что люди в комнате согласны."""
-
-
-def format_result(value: Any) -> str:
-    if isinstance(value, str):
-        return value
-    return json.dumps(value, ensure_ascii=False, indent=2)[:3800]
 
 
 def feature_help() -> str:

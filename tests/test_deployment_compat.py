@@ -41,7 +41,7 @@ async def test_guest_cannot_read_owner_legacy_history(service, bot):
 
 async def test_old_system_alias_uses_luna_without_shell(service, bot):
     await make_dispatcher(service).feed_update(bot, update("/system"))
-    assert "sensors" in bot.session.sent[-1].text
+    assert "Температура" in bot.session.sent[-1].text and "40 °C" in bot.session.sent[-1].text
     assert all(r.method == "GET" for r in service.fakes[0].requests)
 
 

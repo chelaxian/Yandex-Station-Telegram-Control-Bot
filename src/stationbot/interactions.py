@@ -8,14 +8,23 @@ import time
 import uuid
 from dataclasses import dataclass
 
-from aiogram.types import BufferedInputFile, Message
+from aiogram.types import BufferedInputFile, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from . import audio
 from .errors import BotError, InvalidInput, Unavailable
+from .presentation import card, safe
 
 logger = logging.getLogger(__name__)
 ACCEPT = {"прими", "ответь", "возьми трубку", "слушаю", "алло", "да"}
 DECLINE = {"отклони", "отбой", "сбрось", "не сейчас"}
+
+
+async def notify(message, station, text):
+    title = "📞 Интерком" if "интерком" in text.lower() else "🎧 Воспроизведение" if "воспроизвед" in text.lower() or "звука" in text.lower() else "📣 Уведомление"
+    await message.answer(card(title, [safe(text, 2000)]), parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="home")],
+        [InlineKeyboardButton(text="📞 Интерком", callback_data=f"guide:{station}:call")],
+    ]))
 
 
 @dataclass
@@ -119,15 +128,15 @@ class Interactions:
                 result = await client.audio_status(job)
                 if result["state"] not in {"queued", "playing"}:
                     labels = {"succeeded": "Воспроизведение завершено", "cancelled": "Воспроизведение остановлено", "failed": "Ошибка воспроизведения", "interrupted": "Воспроизведение прервано перезапуском LUNA"}
-                    await message.answer(labels[result["state"]] + ("; временный файл удалён" if result["cleanup"] == "complete" else "; очистка файла не подтверждена"))
+                    await notify(message, station, labels[result["state"]] + ("; временный файл удалён" if result["cleanup"] == "complete" else "; очистка файла не подтверждена"))
                     return
-            await message.answer("Результат воспроизведения не подтверждён; /audio_jobs")
+            await notify(message, station, "Результат воспроизведения не подтверждён; /audio_jobs")
         except asyncio.CancelledError:
             raise
         except Exception as e:
             logger.warning("audio_result_unknown type=%s", type(e).__name__)
             try:
-                await message.answer("Связь потеряна: результат звука неизвестен. /audio_jobs")
+                await notify(message, station, "Связь потеряна: результат звука неизвестен. /audio_jobs")
             except Exception:
                 pass
 
@@ -149,7 +158,7 @@ class Interactions:
                 session.task = asyncio.create_task(self._light(station, session, args[0]), name=f"led-{station}")
             else:
                 await client.led("ring", None)
-            await message.answer("Эффект подсветки обновлён")
+            await notify(message, station, "Эффект подсветки обновлён")
         elif command == "call":
             if station in self.calls:
                 raise InvalidInput("На этой станции уже есть интерком")
@@ -160,7 +169,7 @@ class Interactions:
             session = Session(user, message.chat.id)
             self.calls[station] = session
             session.task = asyncio.create_task(self._intercom(message, station, session), name=f"intercom-{station}")
-            await message.answer("📞 Интерком: ожидание ответа 60 секунд. /answer или «Алиса, ответь». /hangup — завершить. Запись начнётся после приёма.")
+            await notify(message, station, "📞 Интерком: ожидание ответа 60 секунд. /answer или «Алиса, ответь». /hangup — завершить. Запись начнётся после приёма.")
         elif command in {"answer", "hangup"}:
             session = self.calls.get(station)
             if not session:
@@ -169,13 +178,13 @@ class Interactions:
                 await self.service.store.require(user, "owner")
             if command == "answer":
                 session.active = True
-                await message.answer("Интерком принят; запись комнаты активна. /hangup — завершить")
+                await notify(message, station, "Интерком принят; запись комнаты активна. /hangup — завершить")
             elif session.task:
                 session.task.cancel()
                 await asyncio.gather(session.task, return_exceptions=True)
                 self.calls.pop(station, None)
                 await client.stop_audio()
-                await message.answer("Интерком завершён")
+                await notify(message, station, "Интерком завершён")
         elif command == "guard":
             if args not in [["on"], ["off"]]:
                 raise InvalidInput("/guard on|off")
@@ -187,7 +196,7 @@ class Interactions:
                     session.task.cancel()
                     await asyncio.gather(session.task, return_exceptions=True)
                     self.guards.pop(station, None)
-                await message.answer("Охрана выключена")
+                await notify(message, station, "Охрана выключена")
                 return
             if not client.config.camera_input:
                 raise Unavailable("Не настроена camera_input — камера хоста")
@@ -196,7 +205,7 @@ class Interactions:
             session = Session(user, message.chat.id)
             self.guards[station] = session
             session.task = asyncio.create_task(self._guard(message, station, session), name=f"camera-{station}")
-            await message.answer("Охрана включена: анализ камеры хоста, снимок при изменениях. /guard off. После перезапуска остаётся выключенной.")
+            await notify(message, station, "Охрана включена: анализ камеры хоста, снимок при изменениях. /guard off. После перезапуска остаётся выключенной.")
 
     async def _intercom(self, message: Message, station: str, session: Session) -> None:
         client = self.service.clients[station]
@@ -209,18 +218,18 @@ class Interactions:
                     event = await client.json("GET", "alice/command", params={"timeout_ms": 1000}, request_timeout=3)
                     text = event.get("transcript", "").lower().strip().removeprefix("алиса").strip(" ,.!?")
                     if text in DECLINE:
-                        await message.answer("На станции отклонили интерком")
+                        await notify(message, station, "На станции отклонили интерком")
                         return
                     if text in ACCEPT:
                         session.active = True
                 except BotError:
                     await asyncio.sleep(.5)
             if not session.active:
-                await message.answer("Нет ответа: интерком завершён")
+                await notify(message, station, "Нет ответа: интерком завершён")
                 return
             await client.stop_audio()
             voice_task = asyncio.create_task(self._voice_hangup(client, session), name=f"voice-hangup-{station}")
-            await message.answer("🎙 Интерком активен: фрагменты по 5 секунд; голосовые и /tts — на станцию. /hangup")
+            await notify(message, station, "🎙 Интерком активен: фрагменты по 5 секунд; голосовые и /tts — на станцию. /hangup")
             deadline = time.monotonic() + 1800
             while time.monotonic() < deadline and not session.end_requested:
                 await self.service.store.require(session.user, "operator")
@@ -240,7 +249,7 @@ class Interactions:
             raise
         except Exception as e:
             logger.warning("intercom_stopped type=%s", type(e).__name__)
-            await message.answer("Интерком остановлен: связь или доступ недоступны")
+            await notify(message, station, "Интерком остановлен: связь или доступ недоступны")
         finally:
             if voice_task:
                 voice_task.cancel()
@@ -312,6 +321,6 @@ class Interactions:
             raise
         except Exception as e:
             logger.warning("guard_stopped type=%s", type(e).__name__)
-            await message.answer("Охрана остановлена: камера, связь или доступ недоступны")
+            await notify(message, station, "Охрана остановлена: камера, связь или доступ недоступны")
         finally:
             self.guards.pop(station, None)
