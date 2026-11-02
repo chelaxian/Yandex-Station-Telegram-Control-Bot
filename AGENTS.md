@@ -8,3 +8,4 @@
 - No tokens, real owner IDs, private configuration, sessions, audio or personal conversations in commits or logs. Keep record/stream features explicit and off by default.
 - Run lint, relevant tests, build and the tracked-file credential guard before pushing. Test doubles must never contact Telegram or record a room.
 - Real deployment, audio, reboot and firmware testing must preserve existing project constraints. Do not confuse successful mock tests with device validation.
+- The owner requires bot runtime changes in this ongoing task to be deployed to their existing mini-PC LXC and verified there. Reuse the private deployment record in the project vault, preserve existing customizations and credentials, stage a new release, run tests as the service user, keep automatic rollback and verify Telegram and both stations. Do not put private deployment configuration in this repository.
