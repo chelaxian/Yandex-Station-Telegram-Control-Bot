@@ -36,7 +36,7 @@ async def doctor(config: Config) -> int:
 async def serve(config: Config) -> None:
     from aiogram import Bot
     from aiogram.client.session.aiohttp import AiohttpSession
-    from aiogram.types import BotCommand
+    from aiogram.types import BotCommand, BotCommandScopeChat, MenuButtonCommands
 
     from .service import Service
     from .telegram import make_dispatcher, timer_worker
@@ -50,13 +50,16 @@ async def serve(config: Config) -> None:
             clients[station.id] = Luna(station)
         service = Service(config, store, clients)
         async with Bot(config.token(), session=AiohttpSession(proxy=config.telegram_proxy())) as bot:
-            await bot.set_my_commands([BotCommand(command=cmd, description=desc) for cmd, desc in [
+            commands = [BotCommand(command=cmd, description=desc) for cmd, desc in [
                 ("menu", "Управление станцией"), ("stations", "Выбор станции"),
                 ("status", "Связь с LUNA"), ("volume", "Громкость"), ("led", "Подсветка"),
                 ("clock", "Часы"), ("health", "Диагностика"), ("record", "Запись по запросу"),
                 ("timer", "Таймер Telegram"), ("history", "Действия бота"),
                 ("legacy_history", "История прежнего бота"), ("capabilities", "Возможности станции"),
-                ("features", "Статус функций"), ("help", "Справка")]])
+                ("features", "Статус функций"), ("help", "Справка")]]
+            await bot.set_my_commands(commands)
+            await bot.set_my_commands(commands, scope=BotCommandScopeChat(chat_id=config.owner_id))
+            await bot.set_chat_menu_button(chat_id=config.owner_id, menu_button=MenuButtonCommands())
             dispatcher = make_dispatcher(service)
             timer_task = asyncio.create_task(timer_worker(service, bot), name="durable-timers")
             polling_task = asyncio.create_task(dispatcher.start_polling(
