@@ -1,0 +1,32 @@
+{
+  "archive": "Telegram_Control_Bot (2).zip",
+  "archive_sha256": "62912a8b0b8a991b10966b07b9b0fa62cd73d612431f60b9d61cf3a2f179b463",
+  "authors": [
+    "@q_cold_city",
+    "@mipight"
+  ],
+  "version": "2.7",
+  "sanitized_files": [
+    {
+      "file": "ИНСТРУКЦИЯ.md",
+      "reason": "remove embedded/example Telegram credentials and owner IDs",
+      "original_sha256": "02e97bf45a0bc8263fa00ac75afdffeaedd610eb7662084520f0487178dea13d"
+    },
+    {
+      "file": "bot/bot.py",
+      "reason": "remove embedded/example Telegram credentials and owner IDs",
+      "original_sha256": "1303fb6e85e6704f9344172d71d564ff3f4cca4d1924f46f503569b7a296fdb4"
+    },
+    {
+      "file": "bot/config.ini",
+      "reason": "remove embedded/example Telegram credentials and owner IDs",
+      "original_sha256": "4e5cca4455d7c980263b74ae7e93b06c6a5436f0493bd1ce372c157fbd8c388d"
+    },
+    {
+      "file": "bot/config_example.ini",
+      "reason": "remove embedded/example Telegram credentials and owner IDs",
+      "original_sha256": "4e5cca4455d7c980263b74ae7e93b06c6a5436f0493bd1ce372c157fbd8c388d"
+    }
+  ],
+  "license": "No license grant found in supplied archive; no relicensing implied."
+}
