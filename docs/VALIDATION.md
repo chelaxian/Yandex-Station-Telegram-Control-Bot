@@ -8,11 +8,12 @@ Commit `7773047` установлен в отдельный release/venv вну�
 
 - 35 тестов PASS на Windows3.10 и отдельно Linux3.11. [CI7773047](https://github.com/chelaxian/Yandex-Station-Telegram-Control-Bot/actions/runs/41493788604) PASS во всех4jobs Linux/Windows Python3.10/3.12.
 - Реальные GET/device, volume, sensors и microphone/devices обеих моделей прошли из LXC; каналов4/3. Транспорт — уже доступный ADB, отдельные local forwards и foreground server только на loopback. SSH TCP forwarding оказался запрещён; конфигурация SSH станций не менялась.
+- Выполнен restart именно нового shared ADB server: обе mappings автоматически восстановились, обе модели снова ответили200, PID бота сохранился, NRestarts=0. Для этого зависимости транспорта отделены от lifetime Telegram-службы.
 - Telegram getMe и webhook preflight PASS через прежний HTTP proxy. Runtime polling активен; прежний poller остановлен. Native Menu Commands, global/owner scopes и14команд прочитаны обратно.
 - В router поданы два синтетических `/menu` с тестовым read-only selection; ответы реально отправлены владельцу через Telegram API. Ответные Message/markup проверены: часы видны у Mini3Pro, отсутствуют у Station2. Это реальный outbound API и тест router, а не подтверждение реального входящего клика пользователя.
 - Аудио, LED/clock/volume writes, reboot, OTA, Flash, сеть/ALSA колонок не менялись. Проверки автозапуска после reboot не выполнялись. LUNA на колонках остаётся временной: её persistence требует отдельного завершения.
 
-## Выполнено локально
+## Проверки первоначальной alpha3.0.0a1
 
 - Windows, CPython 3.10.11, aiogram 3.31.0, httpx 0.28.1, aiosqlite 0.22.1.
 - `ruff check src tests scripts`: PASS.

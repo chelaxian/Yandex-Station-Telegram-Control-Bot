@@ -1,6 +1,7 @@
 """Supervise one existing ADB device's LUNA forward; never change device configuration."""
 import argparse
 import logging
+import socket
 import subprocess
 import time
 
@@ -20,6 +21,10 @@ def main():
     ready = False
     while True:
         try:
+            # Let the dedicated systemd service own the ADB server. Avoid starting
+            # a competing daemon from a per-device client during server recovery.
+            with socket.create_connection(("127.0.0.1", 5037), timeout=1):
+                pass
             state = run(["-s", args.serial, "get-state"])
             if state.returncode or state.stdout.strip() != "device":
                 run(["connect", args.serial])
@@ -40,7 +45,7 @@ def main():
             if not ready:
                 logging.info("LUNA forward ready")
             ready = True
-        except (RuntimeError, subprocess.TimeoutExpired):
+        except (RuntimeError, subprocess.TimeoutExpired, OSError):
             if ready:
                 logging.warning("LUNA forward unavailable; reconnecting")
             ready = False
