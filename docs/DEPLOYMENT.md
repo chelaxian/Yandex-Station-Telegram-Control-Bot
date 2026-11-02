@@ -2,7 +2,7 @@
 
 ## Дополнения 3.0.0b1
 
-На хосте необходимы `ffmpeg` и `espeak-ng` (в Dockerfile включены). Новые аудиофункции требуют LUNA46bc6a3 с audio.jobs.v1. Для терминала/скриптов/образов одновременно нужны `LUNA_ENABLE_OWNER_TOOLS=1` у LUNA и `allow_owner_tools=true` в секции станции. Owner API остаётся loopback, это не публичный shell.
+На хосте необходимы `ffmpeg` и `espeak-ng` (в Dockerfile включены). Квалифицированный beta-контракт — LUNA0f2393e с audio.jobs.v1 и owner.speech.phase.v1 для автоматических тем. Для терминала/скриптов/образов одновременно нужны `LUNA_ENABLE_OWNER_TOOLS=1` у LUNA и `allow_owner_tools=true` в секции станции. Owner API остаётся loopback, это не публичный shell.
 
 `deploy/portable-launch.py --mode host|station --config ... --env-file ... --check` проверяет подготовленный Python3.10+, зависимости, медиа-утилиты, приватность env и конфигурацию. Без `--check` запускает тот же бот. Station mode требует локальную LUNA. Launcher не устанавливает Python и не редактирует boot/rootfs; station-local offline distribution и модельный автозапуск пока не квалифицированы. Не запускайте его параллельно с хостовым poller того же токена.
 
