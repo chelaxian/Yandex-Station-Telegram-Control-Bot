@@ -2,7 +2,7 @@
 
 ## Beta 3.0.0b1
 
-- Программные проверки бота: 57 PASS на Windows/Python3.10; lint PASS. Новые проверки: ZIP traversal/hash/legacy import/rollback retention, WAV pipe headers, синтезированные эффекты, безопасный калькулятор, RBAC новых действий, source-qualified audio/owner endpoints, отмена интеркома до первого запуска task, backup диалогов/предложений и запуск восстановленного скрипта.
+- Программные проверки бота: 59 PASS на Windows/Python3.10; lint PASS. Новые проверки: ZIP traversal/hash/legacy import/rollback retention, WAV pipe headers, синтезированные эффекты, безопасный калькулятор, RBAC новых действий, source-qualified audio/owner endpoints, отмена интеркома до первого запуска task, голосовой отбой, отсутствие записи собственного playback, backup диалогов/предложений и запуск восстановленного скрипта.
 - LUNA46bc6a3: 72 Rust tests PASS последовательно. При параллельном запуске унаследованные yam_binary lock tests конфликтуют друг с другом; последовательный запуск устраняет конфликт, он не скрыт исключением тестов.
 - Реальные Станция2 и Мини3Про: новые бинарники сверены SHA-256, прежние настройки сохранены побайтово. Playback job завершился с кодом backend0; повтор того же ключа вернул прежний результат; отмена дала cancelled; WAV cleanup=complete; некорректный WAV отклонён. Слухового подтверждения этой проверки нет.
 - На обеих колонках: безопасный printf через owner provider, upload/run/delete тестового .sh, Linux system report и 1-секундный непустой WAV микрофона PASS. Записи не сохранены в отчёте.

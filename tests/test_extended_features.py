@@ -95,3 +95,30 @@ async def test_restore_then_run_script_uses_restored_source(service):
     client = SimpleNamespace(owner=AsyncMock(return_value={"exit_code": 0}))
     await features.execute(client, "run_script", ["action.sh"])
     assert client.owner.call_args.kwargs["json"] == {"name": "action.sh", "source": "printf restored"}
+
+
+async def test_intercom_does_not_capture_its_own_playback(service):
+    from conftest import wav_bytes
+
+    from stationbot.interactions import Session
+    client = service.clients["mini"]
+    session = Session(1, 1, active=True)
+    client.stop_audio = AsyncMock(return_value=[])
+    client.audio_jobs = AsyncMock(side_effect=[[{**JOB, "state": "playing"}], []])
+    async def record(seconds):
+        session.end_requested = True
+        return wav_bytes()
+    client.record = AsyncMock(side_effect=record)
+    message = SimpleNamespace(answer=AsyncMock(), answer_audio=AsyncMock())
+    await service.interactions._intercom(message, "mini", session)
+    assert client.audio_jobs.await_count == 2
+    client.record.assert_awaited_once_with(5)
+    message.answer_audio.assert_awaited_once()
+
+
+async def test_voice_hangup_uses_verified_transcript_event(service):
+    from stationbot.interactions import Session
+    session = Session(1, 1, active=True)
+    client = SimpleNamespace(json=AsyncMock(return_value={"transcript": "Алиса, отбой!"}))
+    await service.interactions._voice_hangup(client, session)
+    assert session.end_requested

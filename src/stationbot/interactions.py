@@ -24,6 +24,7 @@ class Session:
     chat: int
     task: asyncio.Task | None = None
     active: bool = False
+    end_requested: bool = False
 
 
 class Interactions:
@@ -137,6 +138,7 @@ class Interactions:
 
     async def _intercom(self, message: Message, station: str, session: Session) -> None:
         client = self.service.clients[station]
+        voice_task = None
         try:
             deadline = time.monotonic() + 60
             while not session.active and time.monotonic() < deadline:
@@ -155,14 +157,20 @@ class Interactions:
                 await message.answer("Нет ответа: интерком завершён")
                 return
             await client.stop_audio()
+            voice_task = asyncio.create_task(self._voice_hangup(client, session), name=f"voice-hangup-{station}")
             await message.answer("🎙 Интерком активен: фрагменты по 5 секунд; голосовые и /tts — на станцию. /hangup")
             deadline = time.monotonic() + 1800
-            while time.monotonic() < deadline:
+            while time.monotonic() < deadline and not session.end_requested:
                 await self.service.store.require(session.user, "operator")
                 # Let explicit actions enter between chunks; do not hold a global device lock.
                 async with client.operation_lock:
                     await self.service.store.require(session.user, "operator")
-                    wav = await client.record(5)
+                    # Avoid sending the caller their own played voice as room feedback.
+                    playing = any(j["state"] in {"queued", "playing"} for j in await client.audio_jobs())
+                    wav = None if playing else await client.record(5)
+                if wav is None:
+                    await asyncio.sleep(.5)
+                    continue
                 await message.answer_audio(BufferedInputFile(wav, filename="intercom.wav"), caption="Интерком · " + client.config.label)
                 del wav
                 await asyncio.sleep(.5)
@@ -172,11 +180,25 @@ class Interactions:
             logger.warning("intercom_stopped type=%s", type(e).__name__)
             await message.answer("Интерком остановлен: связь или доступ недоступны")
         finally:
+            if voice_task:
+                voice_task.cancel()
+                await asyncio.gather(voice_task, return_exceptions=True)
             self.calls.pop(station, None)
             try:
                 await client.stop_audio()
             except BotError:
                 pass
+
+    async def _voice_hangup(self, client, session: Session) -> None:
+        while not session.end_requested:
+            await self.service.store.require(session.user, "operator")
+            try:
+                event = await client.json("GET", "alice/command", params={"timeout_ms": 1000}, request_timeout=3)
+                text = event.get("transcript", "").lower().strip().removeprefix("алиса").strip(" ,.!?")
+                if text in DECLINE:
+                    session.end_requested = True
+            except BotError:
+                await asyncio.sleep(.5)
 
     async def _light(self, station: str, session: Session, name: str) -> None:
         client = self.service.clients[station]
