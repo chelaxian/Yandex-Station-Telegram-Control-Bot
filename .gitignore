@@ -7,6 +7,10 @@ __pycache__/
 build/
 dist/
 .env
+secrets.env
+installation.json
+launch.json
+*.answers.json
 config.toml
 state/
 *.db*
