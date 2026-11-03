@@ -101,6 +101,8 @@ Linux: используйте `.venv/bin/python`. `doctor` не требует �
 
 ## Разработка
 
+Как проверить свою модель, добавить поддержку функций и подготовить проверенный PR: **[руководство для контрибьютеров и ИИ-агентов](CONTRIBUTION.md)**.
+
 ```sh
 python -m pip install -e '.[dev]' -c requirements.lock.txt
 python -m ruff check src tests
