@@ -10,6 +10,8 @@ import time
 import urllib.request
 from pathlib import Path
 
+from .network import is_lan_address
+
 ROOT = "/data/local/stationbot-luna"
 REMOTE_PORT = 18100
 RUNTIME_COMMIT = "0f2393e4d613472c79755b358abc3047a9466963"
@@ -29,8 +31,8 @@ def serial_address(value: str) -> str:
         address = ipaddress.IPv4Address(host)
     except ValueError as e:
         raise ProvisionError("Нужен IPv4-адрес колонки в домашней сети") from e
-    if not address.is_private or address.is_unspecified or address.is_multicast or address.is_reserved or address.is_loopback:
-        raise ProvisionError("Допускается только частный LAN-адрес колонки")
+    if not is_lan_address(address):
+        raise ProvisionError("Нужен LAN IPv4: 10.x, 172.16–31.x или 192.168.x. VPN fake-IP 198.18.x не является адресом колонки; проверьте адрес в роутере.")
     if separator and port != "5555":
         raise ProvisionError("Укажите существующий root ADB на порту 5555")
     return f"{address}:5555"

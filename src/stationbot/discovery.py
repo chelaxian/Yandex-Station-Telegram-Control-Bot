@@ -3,15 +3,16 @@ import asyncio
 import ipaddress
 
 from .errors import InvalidInput
+from .network import is_lan_network
 
 
 async def discover(cidr: str) -> list[str]:
     try:
         network = ipaddress.ip_network(cidr, strict=False)
-        if network.version != 4 or network.prefixlen < 24 or not network.is_private:
+        if network.version != 4 or network.prefixlen < 24 or not is_lan_network(network):
             raise ValueError
     except ValueError as e:
-        raise InvalidInput("Укажите частную IPv4-подсеть /24 или меньше, например /discover 192.168.1.0/24") from e
+        raise InvalidInput("Укажите LAN IPv4-подсеть /24 или меньше из 10.x, 172.16–31.x или 192.168.x; VPN fake-IP 198.18.x не подходит. Например /discover 192.168.1.0/24") from e
     slots = asyncio.Semaphore(64)
 
     async def probe(host) -> str | None:
