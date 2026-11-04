@@ -157,7 +157,7 @@ class Adb:
     def start(self):
         # flock belongs to this installation. No vendor boot hooks, broad pkill,
         # mixer changes or reset of the shared ADB server.
-        return self.shell(f"test -f {ROOT}/managed-v1 || exit 1; chmod 700 {ROOT}/start.sh; nohup /bin/busybox setsid {ROOT}/start.sh >/dev/null 2>&1 </dev/null & sleep 1")
+        return self.shell(f"test -f {ROOT}/managed-v1 || exit 1; chmod 700 {ROOT}/start.sh; S=; for c in setsid /bin/busybox; do command -v $c >/dev/null 2>&1 || continue; if [ $c = setsid ]; then S=setsid; else S='/bin/busybox setsid'; fi; break; done; nohup $S {ROOT}/start.sh >/dev/null 2>&1 </dev/null & sleep 2")
 
     def install(self, binaries: Path, port: int, owner_tools: bool = True):
         model = self.probe()
@@ -168,7 +168,16 @@ class Adb:
         # Refuse an unrelated directory and reserve space before transferring.
         self.shell(f"if [ -e {ROOT} ] && [ ! -f {ROOT}/managed-v1 ]; then exit 1; fi; test $(df -Pk /data | tail -n 1 | awk '{{print $4}}') -ge 16384")
         self.shell(f"umask 077; mkdir -p {ROOT}/data; touch {ROOT}/managed-v1; mkdir -p /tmp/stationbot-luna-audio; if [ ! -e {ROOT}/data/audio-jobs ] && [ ! -L {ROOT}/data/audio-jobs ]; then ln -s /tmp/stationbot-luna-audio {ROOT}/data/audio-jobs; fi")
-        self.run(["-s", self.serial, "push", str(binary), ROOT + "/luna.next"], timeout=60)
+        for attempt in (1, 2):
+            try:
+                self.run(["-s", self.serial, "push", str(binary), ROOT + "/luna.next"], timeout=120)
+                break
+            except ProvisionError:
+                self.shell(f"rm -f {ROOT}/luna.next")
+                if attempt == 2:
+                    raise
+                time.sleep(3)
+                self.connect()
         self.shell(f"test $(sha256sum {ROOT}/luna.next | cut -d' ' -f1) = {profile['sha256']}")
         start = starter(owner_tools, profile)
         # Write fixed generated text through a literal quoted shell argument.
@@ -178,7 +187,8 @@ class Adb:
             self.shell(f"mv {ROOT}/luna.next {ROOT}/luna; chmod 700 {ROOT}/luna; mv {ROOT}/start.sh.next {ROOT}/start.sh")
             self.start()
             self.forward(port)
-            for _ in range(15):
+            device = {}
+            for _ in range(30):
                 try:
                     device = device_json(port)
                     required = {"audio.jobs.v1"} | ({"owner.tools.v1", "owner.speech.phase.v1"} if owner_tools else set())
@@ -187,13 +197,28 @@ class Adb:
                 except (OSError, ValueError):
                     pass
                 time.sleep(1)
-            raise ProvisionError("Новая LUNA не прошла проверку готовности")
+            raise ProvisionError("Новая LUNA не прошла проверку готовности. " + self.diagnose(model, device, owner_tools))
         except Exception:
             self.stop()
             restored = self.shell(f"if [ -f {ROOT}/luna.previous ] && [ -f {ROOT}/start.sh.previous ]; then cp -p {ROOT}/luna.previous {ROOT}/luna; cp -p {ROOT}/start.sh.previous {ROOT}/start.sh; printf restored; fi")
             if restored == "restored":
                 self.start()
             raise
+
+    def diagnose(self, model, device, owner_tools):
+        """Safe read-only summary for support; contains no secrets."""
+        required = {"audio.jobs.v1"} | ({"owner.tools.v1", "owner.speech.phase.v1"} if owner_tools else set())
+        parts = []
+        if device:
+            parts.append(f"модель={device.get('model')}; нет функций: {', '.join(sorted(required - set(device.get('features', [])))) or '-'}")
+        else:
+            parts.append("LUNA не отвечает на /api/device")
+        try:
+            info = self.shell("printf 'pid:'; pidof luna || echo none; printf 'aplay:'; command -v aplay || echo none; printf 'log:'; tail -n 8 /tmp/stationbot-luna.log 2>&1 | cut -c1-160")
+            parts.append(re.sub(r"\s+", " ", info)[:700])
+        except ProvisionError:
+            pass
+        return "Диагностика: " + " | ".join(parts)
 
     def stop(self):
         # Only a process whose executable is exactly our managed binary.
@@ -209,7 +234,7 @@ set -eu
 umask 077
 mkdir -p /tmp/stationbot-luna-audio
 exec 9>/tmp/stationbot-luna-start.lock
-/bin/busybox flock -n 9 || exit 0
+if command -v flock >/dev/null 2>&1; then flock -n 9 || exit 0; elif [ -x /bin/busybox ]; then /bin/busybox flock -n 9 || exit 0; fi
 for p in $(pidof luna); do
     [ "$(readlink /proc/$p/exe)" != {ROOT}/luna ] || exit 0
 done
