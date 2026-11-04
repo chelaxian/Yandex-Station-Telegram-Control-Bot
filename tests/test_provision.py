@@ -1,11 +1,13 @@
 import hashlib
 import importlib.util
 import json
+import subprocess
 from pathlib import Path, PurePosixPath
 from unittest.mock import Mock
 
 import pytest
 
+from stationbot import provision
 from stationbot.provision import Adb, ProvisionError, identify, serial_address, starter
 
 
@@ -13,7 +15,7 @@ def test_model_qualification_never_aliases_midi_to_station2():
     assert identify('0', 'aarch64', 'Yandex Pickle EVT\0', '0.369.1.50.4795647264.20261021.107') == 'yandexmini_3_pro'
     assert identify('0', 'aarch64', 'Yandex Station Midi\0', '0.369.1.50.4794649087.20261021.295') == 'yandexstation_2'
     for values in [('0','aarch64','Yandex Station Midi','other-firmware'), ('1000','aarch64','Yandex Pickle EVT','.50.4795647264.'), ('0','armv7l','Yandex Pickle EVT','.50.4795647264.')]:
-        with pytest.raises(ProvisionError):
+        with pytest.raises(ProvisionError, match='Найдено:|UID 0'):
             identify(*values)
 
 
@@ -49,6 +51,14 @@ def test_forward_does_not_overwrite_another_devices_mapping():
     adb.run = Mock(return_value='192.168.1.2:5555 tcp:18210 tcp:18100\n')
     adb.forward(18210)
     assert adb.run.call_count == 1
+
+
+def test_adb_failure_reports_the_last_tool_diagnostic(monkeypatch):
+    completed = subprocess.CompletedProcess(["adb"], 1, "", "error: device unauthorized")
+    monkeypatch.setattr(provision.subprocess, "run", Mock(return_value=completed))
+    adb = Adb("adb", "192.168.1.2")
+    with pytest.raises(ProvisionError, match="device unauthorized"):
+        adb.run(["get-state"])
 
 
 def test_start_script_is_local_and_only_stops_its_own_binary():

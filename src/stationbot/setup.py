@@ -86,6 +86,8 @@ def main():
         Config(int(owner), (StationConfig("probe", "Проверка", "http://127.0.0.1:18210/api", "probe"),), root / "state", telegram_proxy_env="TELEGRAM_PROXY_URL").telegram_proxy()
     asyncio.run(telegram_preflight(token, proxy))
     clients = [Adb(adb, address) for address in addresses]
+    for address in addresses:
+        print(f"Проверяю колонку {address}: root ADB, модель и прошивку…")
     models = [client.probe() for client in clients]
     for index, (client, model) in enumerate(zip(clients, models, strict=True)):
         print(f"Колонка {index + 1}: {model}; установка закреплённой LUNA…")
@@ -104,6 +106,9 @@ def main():
 if __name__ == "__main__":
     try:
         main()
+    except ProvisionError as error:
+        print(f"Установка остановлена: {error}")
+        raise SystemExit(1) from None
     except Exception as error:
         print(f"Установка остановлена: {type(error).__name__}. Проверьте root ADB, модель, зависимости и права. Секреты не выведены.")
         raise SystemExit(1) from None

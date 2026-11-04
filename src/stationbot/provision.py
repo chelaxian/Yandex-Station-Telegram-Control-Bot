@@ -39,11 +39,26 @@ def serial_address(value: str) -> str:
 
 
 def identify(uid: str, architecture: str, board: str, firmware: str) -> str:
+    clean_uid = uid.strip() or "(пусто)"
+    clean_architecture = architecture.strip() or "(пусто)"
     if uid.strip() != "0" or architecture.strip() != "aarch64":
-        raise ProvisionError("Нужны уже настроенный root ADB и aarch64 kernel; прошивка не меняется")
+        raise ProvisionError(
+            "Root ADB или архитектура не подходят: нужен UID 0 и aarch64, получено "
+            f"UID {clean_uid}, архитектура {clean_architecture}. Установка остановлена; прошивка не меняется."
+        )
     matches = [model for model, p in PROFILES.items() if board.strip("\0 \r\n") == p["board"] and p["firmware"] in firmware]
     if len(matches) != 1:
-        raise ProvisionError("Модель/прошивка не квалифицирована для автоматической установки. Установка остановлена до записи файлов.")
+        clean_board = board.strip("\0 \r\n") or "(пусто)"
+        clean_firmware = firmware.strip("\0 \r\n") or "(пусто)"
+        supported = ", ".join(
+            model + " (" + profile["board"] + ", " + profile["firmware"] + "*)"
+            for model, profile in PROFILES.items()
+        )
+        raise ProvisionError(
+            "Модель/прошивка не квалифицирована для автоматической установки. Найдено: "
+            f"board={clean_board}, firmware={clean_firmware}. "
+            f"Автоматически поддерживаются: {supported}. Установка остановлена до записи файлов; чужой бинарник не подставляется."
+        )
     return matches[0]
 
 
@@ -63,7 +78,9 @@ class Adb:
         except (OSError, subprocess.TimeoutExpired) as e:
             raise ProvisionError("ADB недоступен или превышено время ожидания") from e
         if result.returncode:
-            raise ProvisionError("Команда ADB не выполнена; проверьте доступ к колонке")
+            details = [line.strip() for line in result.stderr.splitlines() if line.strip()]
+            suffix = f"; ADB: {details[-1]}" if details else ""
+            raise ProvisionError("Команда ADB не выполнена; проверьте доступ к колонке" + suffix)
         return result.stdout
 
     def shell(self, command: str):
