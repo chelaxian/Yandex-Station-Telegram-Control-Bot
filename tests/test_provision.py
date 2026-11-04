@@ -8,13 +8,20 @@ from unittest.mock import Mock
 import pytest
 
 from stationbot import provision
-from stationbot.provision import Adb, ProvisionError, identify, serial_address, starter
+from stationbot.provision import PROFILES, Adb, ProvisionError, identify, serial_address, starter
 
 
 def test_model_qualification_never_aliases_midi_to_station2():
     assert identify('0', 'aarch64', 'Yandex Pickle EVT\0', '0.369.1.50.4795647264.20261021.107') == 'yandexmini_3_pro'
     assert identify('0', 'aarch64', 'Yandex Station Midi\0', '0.369.1.50.4794649087.20261021.295') == 'yandexstation_2'
-    for values in [('0','aarch64','Yandex Station Midi','other-firmware'), ('1000','aarch64','Yandex Pickle EVT','.50.4795647264.'), ('0','armv7l','Yandex Pickle EVT','.50.4795647264.')]:
+    assert identify('0', 'aarch64', 'Yandex Plum EVT2\0', '0.369.1.50.4795647582.20261021.133') == 'yandexplum'
+    for values in [
+        ('0','aarch64','Yandex Station Midi','other-firmware'),
+        ('1000','aarch64','Yandex Pickle EVT','.50.4795647264.'),
+        ('0','armv7l','Yandex Pickle EVT','.50.4795647264.'),
+        ('0','aarch64','Yandex Prune EVT2','0.369.1.50.4795647582.20261021.133'),
+        ('0','aarch64','Yandex Plum EVT2','0.369.1.50.4794654278.20261021.133'),
+    ]:
         with pytest.raises(ProvisionError, match='Найдено:|UID 0'):
             identify(*values)
 
@@ -61,10 +68,34 @@ def test_adb_failure_reports_the_last_tool_diagnostic(monkeypatch):
         adb.run(["get-state"])
 
 
+def test_probe_with_adapter_noise_reports_unqualified_profile_not_opaque_failure():
+    adb = Adb("adb", "192.168.1.2")
+    adb.connect = Mock()
+    adb.shell = Mock(return_value="adapter banner\r\n0\r\naarch64\r\nYandex Pickle EVT2\r\n0.369.1.50.4795647582.20261021.133\r\n")
+    with pytest.raises(ProvisionError, match="Yandex Pickle EVT2.*4795647582"):
+        adb.probe()
+
+
+def test_probe_with_adapter_noise_identifies_experimental_plum():
+    adb = Adb("adb", "192.168.1.2")
+    adb.connect = Mock()
+    adb.shell = Mock(return_value="adb adapter ready\r\n0\r\naarch64\r\nYandex Plum EVT2\0\r\n0.369.1.50.4795647582.20261021.133\r\n")
+    assert adb.probe() == "yandexplum"
+
+
+def test_probe_rejects_ambiguous_identification():
+    adb = Adb("adb", "192.168.1.2")
+    adb.connect = Mock()
+    adb.shell = Mock(return_value="0\naarch64\nYandex Plum EVT2\nYandex Prune EVT2\n0.369.1.50.4795647582.20261021.133\n")
+    with pytest.raises(ProvisionError, match="однозначно"):
+        adb.probe()
+
+
 def test_start_script_is_local_and_only_stops_its_own_binary():
-    script = starter(True)
+    script = starter(True, PROFILES["yandexplum"])
     assert '--listen 127.0.0.1:18100' in script and 'flock -n 9' in script
     assert 'LUNA_ENABLE_OWNER_TOOLS=1' in script
+    assert 'LUNA_AUDIO_PCM=plug:dmix_spk' in script
     assert not any(word in script for word in ['reboot', 'remount', 'killall', 'pkill', '/etc/init.d'])
     adb = Adb('adb', '192.168.1.2')
     adb.shell = Mock()

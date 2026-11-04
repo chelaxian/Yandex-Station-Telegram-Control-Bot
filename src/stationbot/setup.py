@@ -10,7 +10,7 @@ import shutil
 from pathlib import Path
 
 from .config import Config
-from .provision import Adb, ProvisionError
+from .provision import PROFILES, Adb, ProvisionError
 
 
 def private_write(path: Path, text: str):
@@ -94,7 +94,7 @@ def main():
         station = client.install(args.bundle / "runtime", 18210 + index, True)
         station["id"] = f"station_{index + 1}"
         plan["stations"].append(station)
-        label = {"yandexmini_3_pro": "Мини 3 Про", "yandexstation_2": "Станция 2"}[model]
+        label = PROFILES[model]["label"]
         lines += ["", "[[stations]]", f'id = "{station["id"]}"', f"label = {toml_string(label)}", f'url = "http://127.0.0.1:{station["port"]}/api"', f"expected_model = {toml_string(model)}", "allow_owner_tools = true", "allow_packages = false"]
     private_write(root / "config.toml", "\n".join(lines) + "\n")
     private_write(root / "secrets.env", f"TELEGRAM_BOT_TOKEN={token}\n" + (f"TELEGRAM_PROXY_URL={proxy}\n" if proxy else ""))

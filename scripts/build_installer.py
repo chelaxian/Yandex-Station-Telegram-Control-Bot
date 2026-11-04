@@ -46,7 +46,14 @@ def main():
     if not (args.notices / "INDEX.json").is_file():
         raise RuntimeError("Third-party notices are required")
     shutil.copytree(args.notices, runtime / "third-party", dirs_exist_ok=True)
-    (runtime / "SOURCE.txt").write_text(f"LUNA source: https://github.com/chelaxian/luna/tree/{RUNTIME_COMMIT}\nBuild: aarch64-unknown-linux-musl, pickle and yandexstation_2 crates\nThird-party notices: third-party/INDEX.json; crate versions: Cargo.lock\n", encoding="utf-8")
+    crates = ", ".join(profile["binary"].removeprefix("luna-") for profile in PROFILES.values())
+    (runtime / "SOURCE.txt").write_text(
+        f"LUNA source: https://github.com/chelaxian/luna/tree/{RUNTIME_COMMIT}\n"
+        "Build: aarch64-unknown-linux-musl\n"
+        f"Station crates: {crates}\n"
+        "Third-party notices: third-party/INDEX.json; crate versions: Cargo.lock\n",
+        encoding="utf-8",
+    )
     files = {p.relative_to(output).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(output.rglob("*")) if p.is_file() and p.name != "bundle.json"}
     (output / "bundle.json").write_text(json.dumps({"version": __version__, "wheel": wheel.name, "runtime_commit": RUNTIME_COMMIT, "files": files}, indent=2), encoding="utf-8")
     with zipfile.ZipFile(Path(str(output) + ".zip"), "w", zipfile.ZIP_DEFLATED, strict_timestamps=False) as archive:

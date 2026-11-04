@@ -49,6 +49,7 @@ LUNA обычно возвращает HTTP 400 даже для недоступ
 |---|---|---|---|
 | Станция 2 YNDX00051 .50 | `yandexstation_2` | framebuffer ring 89/BGRX, 4 raw microphone channels, PCM `dmix_spk_plug`, volume-up событие | нет logo/clock; platform `yandexmidi` не означает коммерческую Midi |
 | Мини 3 Про YNDX00059 .50 | `yandexmini_3_pro` / asset pickle | ring16/logo6, 36 clock segments, 3 raw microphone channels, PCM `speakers`, volume-up событие | не bergamot; clock text_available=false |
+| Лайт 2 Plum .50 | `yandexplum` | station backend объявляет 3-zone RGB, 36 clock segments, Quasar microphone и PCM `plug:dmix_spk`; точная пара board/прошивки уже проверена локальным shared-audio/Quasar-стендом | **экспериментально**: новый `luna-yandexplum` и установщик ещё не проверены на реальной Лайт 2; нужен отчёт по LED, часам, записи и слышимому звуку |
 
 LED readback, release, clock readback и nonzero PCM ранее проверены. Владелец подтвердил слышимый прямой ALSA-тест обеих; для последующего HTTP audio/test отдельного слухового подтверждения нет. Новая версия бота не переиспользует прямой ALSA из этих испытаний.
 
