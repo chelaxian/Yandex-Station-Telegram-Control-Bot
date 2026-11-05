@@ -65,6 +65,32 @@ WantedBy=multi-user.target
 """
 
 
+def stop_managed_windows(root):
+    # Scheduled Task stop can orphan its Python child. Remove only processes from
+    # this installation's managed releases with an exact stationbot command line.
+    def ps(value):
+        return "'" + str(value).replace("'", "''") + "'"
+    script = root / "stop-managed.ps1"
+    script.write_text(f"""$ErrorActionPreference='Stop'
+$root = {ps(root)}
+$releasePrefix = Join-Path $root 'releases'
+$deadline = (Get-Date).AddSeconds(10)
+$managed = @()
+do {{
+    $managed = Get-CimInstance Win32_Process | Where-Object {{
+        $_.ExecutablePath -and $_.ExecutablePath.StartsWith($releasePrefix, [System.StringComparison]::OrdinalIgnoreCase) -and
+        $_.CommandLine -and $_.CommandLine.Contains('-m stationbot') -and $_.CommandLine.Contains($root)
+    }}
+    if ($managed.Count -gt 0) {{
+        $managed | ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force }}
+        Start-Sleep -Milliseconds 500
+    }}
+}} while ($managed.Count -gt 0 -and (Get-Date) -lt $deadline)
+if ($managed.Count -gt 0) {{ throw 'Прежние процессы бота не остановились' }}
+""", encoding="utf-8-sig")
+    run(["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(script)])
+
+
 def windows_task(root, python, start):
     # Paths are literals in generated PowerShell, not shell-concatenated commands.
     def ps(value):
@@ -81,12 +107,13 @@ def windows_task(root, python, start):
         "Start-ScheduledTask -TaskName YandexStationTelegramControlBot\n"
         "$startDeadline = (Get-Date).AddSeconds(15)\n"
         "do { $serviceState = (Get-ScheduledTask -TaskName YandexStationTelegramControlBot).State.ToString(); if ($serviceState -eq 'Running') { break }; Start-Sleep -Milliseconds 500 } while ((Get-Date) -lt $startDeadline)\n"
-        "if ($serviceState -ne 'Running') { throw 'Служба бота не запустилась; откройте service.log' }\n"
+        "if ($serviceState -ne 'Running') { if (Test-Path $serviceLog) { Get-Content $serviceLog -Tail 30 } else { 'service.log отсутствует' }; throw 'Служба бота не запустилась' }\n"
         "Start-Sleep -Seconds 18\n"
         "$serviceState = (Get-ScheduledTask -TaskName YandexStationTelegramControlBot).State.ToString()\n"
-        "if ($serviceState -ne 'Running') { throw 'Служба бота остановилась; откройте service.log' }"
+        "if ($serviceState -ne 'Running') { if (Test-Path $serviceLog) { Get-Content $serviceLog -Tail 30 } else { 'service.log отсутствует' }; throw 'Служба бота остановилась' }"
     ) if start else ""
     registration.write_text(f"""$ErrorActionPreference='Stop'
+$serviceLog = {ps(root / 'service.log')}
 $action=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument {ps(arguments)}
 $trigger=New-ScheduledTaskTrigger -AtLogOn -User ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)
 $principal=New-ScheduledTaskPrincipal -UserId ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name) -LogonType Interactive -RunLevel Limited
@@ -194,13 +221,16 @@ def main():
                 raise RuntimeError("Existing unmanaged scheduled task retained")
             old_task = task.stdout
     try:
+        if os.name == "nt" and not args.no_service:
+            subprocess.run(["schtasks", "/End", "/TN", "YandexStationTelegramControlBot"], capture_output=True)
+            stop_managed_windows(root)
         run(command)
         run([str(python), "-m", "stationbot.supervisor", "--root", str(root), "--check"])
         launch = root / "launch.json"
         launch.write_text(json.dumps({"python": str(python), "version": manifest["version"], "sha256": hashlib.sha256(wheel.read_bytes()).hexdigest()}))
         if not args.no_service:
             if os.name == "nt":
-                subprocess.run(["schtasks", "/End", "/TN", "YandexStationTelegramControlBot"], capture_output=True)
+                stop_managed_windows(root)
                 windows_task(root, python, not args.no_start)
             else:
                 unit = user_unit

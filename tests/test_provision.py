@@ -206,5 +206,19 @@ def test_windows_startup_is_visible_and_survives_supervisor_restarts(tmp_path, m
     assert '$stopDeadline = (Get-Date).AddSeconds(10)' in registration
     assert '$startDeadline = (Get-Date).AddSeconds(15)' in registration
     assert 'Start-Sleep -Seconds 18' in registration
+    assert '$serviceLog =' in registration
+    assert registration.count('Get-Content $serviceLog -Tail 30') == 2
     assert registration.count("$serviceState -ne 'Running'") == 2
+    assert commands and commands[0][0] == 'powershell.exe'
+
+
+def test_windows_update_stops_only_managed_stationbot_processes(tmp_path, monkeypatch):
+    bootstrap = bootstrap_module()
+    commands = []
+    monkeypatch.setattr(bootstrap, 'run', lambda command, **kwargs: commands.append(command))
+    bootstrap.stop_managed_windows(tmp_path)
+    script = (tmp_path / 'stop-managed.ps1').read_text(encoding='utf-8-sig')
+    assert "CommandLine.Contains('-m stationbot')" in script
+    assert 'ExecutablePath.StartsWith($releasePrefix' in script
+    assert 'Stop-Process -Id $_.ProcessId -Force' in script
     assert commands and commands[0][0] == 'powershell.exe'

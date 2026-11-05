@@ -1,3 +1,8 @@
+## 3.0.0b12 — очистка осиротевших процессов обновления
+
+- 124 теста PASS и lint PASS на Windows/Python 3.10. PowerShell Parser проверяет generated stop-managed.ps1 и register-task.ps1.
+- Обнаруженный сценарий: старый bot-процесс мог пережить остановку задачи, отвечать в Telegram, держать instance lock и не восстанавливать ADB; новый Supervisor трижды не запускал своего child и завершался, после чего установщик откатывался к b9.
+
 ## 3.0.0b11 — надёжный перезапуск задачи Windows
 
 - 123 теста PASS и lint PASS на Windows/Python 3.10. Проверяется generated script: Stop/ожидание остановки, poll старта до 15 секунд и контроль через 18 секунд.
