@@ -2,6 +2,7 @@ import hashlib
 import importlib.util
 import json
 import subprocess
+import sys
 from pathlib import Path, PurePosixPath
 from unittest.mock import Mock
 
@@ -210,6 +211,23 @@ def test_windows_startup_is_visible_and_survives_supervisor_restarts(tmp_path, m
     assert registration.count('Get-Content $serviceLog -Tail 30') == 2
     assert registration.count("$serviceState -ne 'Running'") == 2
     assert commands and commands[0][0] == 'powershell.exe'
+
+
+@pytest.mark.skipif(sys.platform != 'win32', reason='Windows PowerShell integration')
+def test_windows_runner_survives_normal_stderr_logging(tmp_path, monkeypatch):
+    bootstrap = bootstrap_module()
+    monkeypatch.setattr(bootstrap, 'run', lambda *args, **kwargs: None)
+    bootstrap.windows_task(tmp_path, Path(sys.executable), start=False)
+    runner = tmp_path / 'run.ps1'
+    text = runner.read_text(encoding='utf-8-sig')
+    begin = text.index(' -m stationbot.supervisor --root ')
+    end = text.index(' >> ', begin)
+    text = text[:begin] + ' -c "import sys; print(123, file=sys.stderr); sys.exit(0)"' + text[end:]
+    runner.write_text(text, encoding='utf-8-sig')
+    result = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-File', str(runner)],
+                            capture_output=True, timeout=15)
+    assert result.returncode == 0, result.stderr.decode(errors='replace')
+    assert '123' in (tmp_path / 'service.log').read_text(encoding='utf-16')
 
 
 def test_windows_update_stops_only_managed_stationbot_processes(tmp_path, monkeypatch):

@@ -96,7 +96,7 @@ def windows_task(root, python, start):
     def ps(value):
         return "'" + str(value).replace("'", "''") + "'"
     runner = root / "run.ps1"
-    runner.write_text(f"$ErrorActionPreference='Stop'\n& {ps(python)} -m stationbot.supervisor --root {ps(root)} >> {ps(root/'service.log')} 2>&1\nexit $LASTEXITCODE\n", encoding="utf-8-sig")
+    runner.write_text(f"$ErrorActionPreference='Continue'\n& {ps(python)} -m stationbot.supervisor --root {ps(root)} >> {ps(root/'service.log')} 2>&1\nexit $LASTEXITCODE\n", encoding="utf-8-sig")
     registration = root / "register-task.ps1"
     arguments = '-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + str(runner) + '"'
     startup_check = (
@@ -119,7 +119,6 @@ $trigger=New-ScheduledTaskTrigger -AtLogOn -User ([System.Security.Principal.Win
 $principal=New-ScheduledTaskPrincipal -UserId ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name) -LogonType Interactive -RunLevel Limited
 $settings=New-ScheduledTaskSettingsSet -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -StartWhenAvailable
 Register-ScheduledTask -TaskName 'YandexStationTelegramControlBot' -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
-{'Start-ScheduledTask -TaskName YandexStationTelegramControlBot' if start else ''}
 {startup_check}
 """, encoding="utf-8-sig")
     run(["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(registration)])
