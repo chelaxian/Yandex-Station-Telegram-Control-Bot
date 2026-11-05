@@ -94,6 +94,22 @@ def device_json(port: int):
         return json.loads(response.read(1024 * 1024))
 
 
+def disable_updates(port: int):
+    """LUNA defaults to upstream auto-update, which replaces the pinned runtime with a
+    build lacking owner tools. Persist updates.enabled=false before the first check (60 s)."""
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    url = f"http://127.0.0.1:{port}/api/settings"
+    with opener.open(url, timeout=5) as response:
+        settings = json.loads(response.read(1024 * 1024))
+    settings.setdefault("updates", {})["enabled"] = False
+    request = urllib.request.Request(url, data=json.dumps(settings).encode(), method="PUT", headers={"Content-Type": "application/json"})
+    with opener.open(request, timeout=5):
+        pass
+    with opener.open(url, timeout=5) as response:
+        if json.loads(response.read(1024 * 1024)).get("updates", {}).get("enabled") is not False:
+            raise ProvisionError("Не удалось отключить автообновление LUNA")
+
+
 class Adb:
     def __init__(self, executable: str, serial: str):
         self.executable, self.serial = executable, serial_address(serial)
@@ -191,6 +207,7 @@ class Adb:
             for _ in range(30):
                 try:
                     device = device_json(port)
+                    disable_updates(port)
                     required = {"audio.jobs.v1"} | ({"owner.tools.v1", "owner.speech.phase.v1"} if owner_tools else set())
                     if device.get("model") == model and required <= set(device.get("features", [])):
                         return {"serial": self.serial, "port": port, "model": model, "sha256": profile["sha256"]}
@@ -222,7 +239,7 @@ class Adb:
 
     def stop(self):
         # Only a process whose executable is exactly our managed binary.
-        self.shell(f"for p in $(pidof luna); do if [ \"$(readlink /proc/$p/exe)\" = {ROOT}/luna ]; then kill \"$p\"; fi; done; sleep 1")
+        self.shell(f"for p in $(pidof luna); do if [ \"$(readlink /proc/$p/exe)\" = {ROOT}/luna ] || tr '\\0' ' ' </proc/$p/cmdline | grep -q -- '--data-dir {ROOT}/data'; then kill \"$p\"; fi; done; sleep 1")
 
 
 def starter(owner_tools: bool, profile: dict) -> str:
