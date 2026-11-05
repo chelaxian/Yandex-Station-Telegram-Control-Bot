@@ -73,6 +73,14 @@ def windows_task(root, python, start):
     runner.write_text(f"$ErrorActionPreference='Stop'\n& {ps(python)} -m stationbot.supervisor --root {ps(root)} >> {ps(root/'service.log')} 2>&1\nexit $LASTEXITCODE\n", encoding="utf-8-sig")
     registration = root / "register-task.ps1"
     arguments = '-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + str(runner) + '"'
+    startup_check = (
+        "Start-Sleep -Seconds 6\n"
+        "$serviceState = (Get-ScheduledTask -TaskName YandexStationTelegramControlBot).State.ToString()\n"
+        "if ($serviceState -ne 'Running') { throw 'Служба бота не запустилась; откройте service.log' }\n"
+        "Start-Sleep -Seconds 12\n"
+        "$serviceState = (Get-ScheduledTask -TaskName YandexStationTelegramControlBot).State.ToString()\n"
+        "if ($serviceState -ne 'Running') { throw 'Служба бота остановилась; откройте service.log' }"
+    ) if start else ""
     registration.write_text(f"""$ErrorActionPreference='Stop'
 $action=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument {ps(arguments)}
 $trigger=New-ScheduledTaskTrigger -AtLogOn -User ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)
@@ -80,6 +88,7 @@ $principal=New-ScheduledTaskPrincipal -UserId ([System.Security.Principal.Window
 $settings=New-ScheduledTaskSettingsSet -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -StartWhenAvailable
 Register-ScheduledTask -TaskName 'YandexStationTelegramControlBot' -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
 {'Start-ScheduledTask -TaskName YandexStationTelegramControlBot' if start else ''}
+{startup_check}
 """, encoding="utf-8-sig")
     run(["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(registration)])
 
@@ -202,7 +211,9 @@ def main():
                     run(["systemctl", "--user", "restart", "stationbot-oneclick.service"])
                     time.sleep(3)
                     run(["systemctl", "--user", "is-active", "--quiet", "stationbot-oneclick.service"])
-        print("Установка завершена. ПК/сервер должен оставаться включённым. Откройте /menu в боте.")
+        print("Установка завершена. Служба бота запущена; ПК/сервер должен оставаться включённым.")
+        print(f"Журнал службы: {root / 'service.log'}")
+        print("Откройте чат с ботом и отправьте /menu.")
     except Exception:
         for original in backups.iterdir():
             shutil.copy2(original, root / original.name)

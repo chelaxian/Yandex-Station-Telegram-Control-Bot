@@ -57,7 +57,7 @@ def main():
             recover(station, plan["adb"])
             if device_json(station["port"])["model"] != station["model"]:
                 raise ProvisionError("Проверка модели не пройдена")
-        print("Конфигурация и подключения LUNA проверены; poller не запускался")
+        print("Конфигурация и подключения LUNA проверены. Poller здесь намеренно не запускается; служба будет запущена на следующем шаге.")
         return
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     lock = InstanceLock(root / "supervisor.lock")

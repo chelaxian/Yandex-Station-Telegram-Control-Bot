@@ -133,3 +133,15 @@ def test_system_service_quotes_paths_and_uses_unprivileged_account():
     assert 'ExecStart="/opt/my bot/releases/venv/bin/python"' in text
     with pytest.raises(ValueError):
         bootstrap_module().system_unit(Path('/tmp/injected\nExecStart=bad'), Path('/bin/python'))
+
+
+def test_windows_startup_is_visible_and_survives_supervisor_restarts(tmp_path, monkeypatch):
+    bootstrap = bootstrap_module()
+    commands = []
+    monkeypatch.setattr(bootstrap, 'run', lambda command, **kwargs: commands.append(command))
+    bootstrap.windows_task(tmp_path, tmp_path / 'python.exe', start=True)
+    registration = (tmp_path / 'register-task.ps1').read_text(encoding='utf-8-sig')
+    assert 'Start-ScheduledTask -TaskName YandexStationTelegramControlBot' in registration
+    assert 'Start-Sleep -Seconds 6' in registration and 'Start-Sleep -Seconds 12' in registration
+    assert registration.count("$serviceState -ne 'Running'") == 2
+    assert commands and commands[0][0] == 'powershell.exe'
