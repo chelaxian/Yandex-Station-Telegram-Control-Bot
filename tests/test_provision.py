@@ -202,6 +202,9 @@ def test_windows_startup_is_visible_and_survives_supervisor_restarts(tmp_path, m
     bootstrap.windows_task(tmp_path, tmp_path / 'python.exe', start=True)
     registration = (tmp_path / 'register-task.ps1').read_text(encoding='utf-8-sig')
     assert 'Start-ScheduledTask -TaskName YandexStationTelegramControlBot' in registration
-    assert 'Start-Sleep -Seconds 6' in registration and 'Start-Sleep -Seconds 12' in registration
+    assert 'Stop-ScheduledTask -TaskName YandexStationTelegramControlBot' in registration
+    assert '$stopDeadline = (Get-Date).AddSeconds(10)' in registration
+    assert '$startDeadline = (Get-Date).AddSeconds(15)' in registration
+    assert 'Start-Sleep -Seconds 18' in registration
     assert registration.count("$serviceState -ne 'Running'") == 2
     assert commands and commands[0][0] == 'powershell.exe'

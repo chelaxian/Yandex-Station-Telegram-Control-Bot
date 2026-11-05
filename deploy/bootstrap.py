@@ -74,10 +74,15 @@ def windows_task(root, python, start):
     registration = root / "register-task.ps1"
     arguments = '-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + str(runner) + '"'
     startup_check = (
-        "Start-Sleep -Seconds 6\n"
-        "$serviceState = (Get-ScheduledTask -TaskName YandexStationTelegramControlBot).State.ToString()\n"
+        "Stop-ScheduledTask -TaskName YandexStationTelegramControlBot\n"
+        "$stopDeadline = (Get-Date).AddSeconds(10)\n"
+        "while (((Get-Date) -lt $stopDeadline) -and ((Get-ScheduledTask -TaskName YandexStationTelegramControlBot).State -eq 'Running')) { Start-Sleep -Milliseconds 500 }\n"
+        "if ((Get-ScheduledTask -TaskName YandexStationTelegramControlBot).State -eq 'Running') { throw 'Прежняя служба бота не остановилась' }\n"
+        "Start-ScheduledTask -TaskName YandexStationTelegramControlBot\n"
+        "$startDeadline = (Get-Date).AddSeconds(15)\n"
+        "do { $serviceState = (Get-ScheduledTask -TaskName YandexStationTelegramControlBot).State.ToString(); if ($serviceState -eq 'Running') { break }; Start-Sleep -Milliseconds 500 } while ((Get-Date) -lt $startDeadline)\n"
         "if ($serviceState -ne 'Running') { throw 'Служба бота не запустилась; откройте service.log' }\n"
-        "Start-Sleep -Seconds 12\n"
+        "Start-Sleep -Seconds 18\n"
         "$serviceState = (Get-ScheduledTask -TaskName YandexStationTelegramControlBot).State.ToString()\n"
         "if ($serviceState -ne 'Running') { throw 'Служба бота остановилась; откройте service.log' }"
     ) if start else ""
