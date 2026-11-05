@@ -11,6 +11,7 @@ import sys
 import time
 from pathlib import Path
 
+from . import __version__
 from .instance import InstanceLock
 from .provision import Adb, ProvisionError, device_json
 
@@ -38,6 +39,9 @@ def recover(station, adb_path):
         raise ProvisionError("После переподключения идентификация изменилась")
     adb.start()
     adb.forward(station["port"], refresh=True)
+    recovered = device_json(station["port"])
+    if recovered.get("model") != station["model"]:
+        raise ProvisionError("Пересозданный ADB forward указывает на другую модель LUNA")
 
 
 def main():
@@ -60,6 +64,7 @@ def main():
         print("Конфигурация и подключения LUNA проверены. Poller здесь намеренно не запускается; служба будет запущена на следующем шаге.")
         return
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    logger.info("supervisor_started version=%s stations=%s", __version__, len(plan["stations"]))
     lock = InstanceLock(root / "supervisor.lock")
     stopping = False
     def stop(signum, frame):

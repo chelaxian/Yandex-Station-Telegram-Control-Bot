@@ -1,3 +1,8 @@
+## 3.0.0b10 — подтверждение восстановления туннеля
+
+- 123 теста PASS и lint PASS на Windows/Python 3.10. Добавлены проверки: recover обязан получить модель LUNA после refresh forward; повторная ошибка туннеля пробрасывается в журнал Supervisor.
+- Диагностика основана на отчёте Лайт 2: процесс LUNA жив, required features присутствуют, updates.enabled=false, но локальный порт 18210 не принимает соединение.
+
 ## 3.0.0b9 — восстановление устаревшего ADB forward
 
 - 122 теста PASS и lint PASS на Windows/Python 3.10. Добавлены проверки: refresh удаляет и повторно создаёт только точное соответствие serial/local port/remote port, не трогая чужие mapping; Supervisor вызывает refresh после reconnect.

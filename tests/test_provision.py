@@ -98,9 +98,26 @@ def test_recover_recreates_forward_after_transport_reconnect(monkeypatch):
 
     fake = FakeAdb('adb', '192.168.1.2')
     monkeypatch.setattr(supervisor, 'Adb', lambda executable, serial: fake)
-    monkeypatch.setattr(supervisor, 'device_json', Mock(side_effect=OSError('stale tunnel')))
+    device_json = Mock(side_effect=[OSError('stale tunnel'), {'model': 'yandexplum'}])
+    monkeypatch.setattr(supervisor, 'device_json', device_json)
     supervisor.recover({'serial': '192.168.1.2:5555', 'model': 'yandexplum', 'port': 18210}, 'adb')
     assert fake.forwarded == (18210, True)
+
+
+def test_recover_reports_forward_that_still_does_not_reach_luna(monkeypatch):
+    class FakeAdb:
+        def __init__(self, executable, serial):
+            pass
+
+        def connect(self): pass
+        def probe(self): return 'yandexplum'
+        def start(self): pass
+        def forward(self, port, *, refresh=False): pass
+
+    monkeypatch.setattr(supervisor, 'Adb', FakeAdb)
+    monkeypatch.setattr(supervisor, 'device_json', Mock(side_effect=[OSError('stale tunnel'), OSError('forward still dead')]))
+    with pytest.raises(OSError):
+        supervisor.recover({'serial': '192.168.1.2:5555', 'model': 'yandexplum', 'port': 18210}, 'adb')
 
 
 def test_adb_failure_reports_the_last_tool_diagnostic(monkeypatch):
