@@ -159,15 +159,20 @@ class Adb:
         # unique. Exact profile matching below remains the sole authorization for a write.
         return identify(*(candidates[0] for candidates in grouped.values()))
 
-    def forward(self, port: int):
+    def forward(self, port: int, *, refresh: bool = False):
         if type(port) is not int or not 1024 <= port <= 65535:
             raise ProvisionError("Некорректный локальный порт")
         expected = [self.serial, f"tcp:{port}", f"tcp:{REMOTE_PORT}"]
         entries = [line.split() for line in self.run(["forward", "--list"]).splitlines()]
-        if expected in entries:
+        present = expected in entries
+        if present and not refresh:
             return
-        if any(len(e) > 1 and e[1] == expected[1] for e in entries):
+        if any(len(e) > 1 and e[1] == expected[1] and e != expected for e in entries):
             raise ProvisionError("Локальный порт занят другим ADB-подключением; оно сохранено")
+        # ADB can retain a mapping after the transport drops. Reconnect must replace
+        # only this installation's exact serial/local-port/remote-port triple.
+        if present:
+            self.run(["-s", self.serial, "forward", "--remove", expected[1]])
         self.run(["-s", self.serial, "forward", "--no-rebind", *expected[1:]])
 
     def start(self):

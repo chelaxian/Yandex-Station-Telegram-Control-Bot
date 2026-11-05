@@ -7,7 +7,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from stationbot import provision
+from stationbot import provision, supervisor
 from stationbot.provision import PROFILES, Adb, ProvisionError, identify, serial_address, starter
 
 
@@ -58,6 +58,49 @@ def test_forward_does_not_overwrite_another_devices_mapping():
     adb.run = Mock(return_value='192.168.1.2:5555 tcp:18210 tcp:18100\n')
     adb.forward(18210)
     assert adb.run.call_count == 1
+
+
+def test_forward_refresh_replaces_only_its_own_stale_mapping():
+    adb = Adb('adb', '192.168.1.2')
+    calls = []
+
+    def run(args, **kwargs):
+        calls.append(args)
+        if args[-1] == '--list':
+            return '192.168.1.2:5555 tcp:18210 tcp:18100\n'
+        return ''
+
+    adb.run = Mock(side_effect=run)
+    adb.forward(18210, refresh=True)
+    assert calls == [
+        ['forward', '--list'],
+        ['-s', '192.168.1.2:5555', 'forward', '--remove', 'tcp:18210'],
+        ['-s', '192.168.1.2:5555', 'forward', '--no-rebind', 'tcp:18210', 'tcp:18100'],
+    ]
+
+
+def test_recover_recreates_forward_after_transport_reconnect(monkeypatch):
+    class FakeAdb:
+        def __init__(self, executable, serial):
+            self.forwarded = None
+
+        def connect(self):
+            pass
+
+        def probe(self):
+            return 'yandexplum'
+
+        def start(self):
+            pass
+
+        def forward(self, port, *, refresh=False):
+            self.forwarded = (port, refresh)
+
+    fake = FakeAdb('adb', '192.168.1.2')
+    monkeypatch.setattr(supervisor, 'Adb', lambda executable, serial: fake)
+    monkeypatch.setattr(supervisor, 'device_json', Mock(side_effect=OSError('stale tunnel')))
+    supervisor.recover({'serial': '192.168.1.2:5555', 'model': 'yandexplum', 'port': 18210}, 'adb')
+    assert fake.forwarded == (18210, True)
 
 
 def test_adb_failure_reports_the_last_tool_diagnostic(monkeypatch):

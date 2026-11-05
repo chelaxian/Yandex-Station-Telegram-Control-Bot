@@ -37,7 +37,7 @@ def recover(station, adb_path):
     if adb.probe() != station["model"]:
         raise ProvisionError("После переподключения идентификация изменилась")
     adb.start()
-    adb.forward(station["port"])
+    adb.forward(station["port"], refresh=True)
 
 
 def main():
@@ -74,8 +74,8 @@ def main():
             for station in plan["stations"]:
                 try:
                     recover(station, plan["adb"])
-                except (OSError, ValueError, ProvisionError):
-                    logger.warning("station_unavailable id=%s", station["id"])
+                except (OSError, ValueError, ProvisionError) as error:
+                    logger.warning("station_unavailable id=%s error=%s", station["id"], type(error).__name__)
             if child is None:
                 child = subprocess.Popen([sys.executable, "-m", "stationbot", "--config", str(root / "config.toml"), "run"])
             elif child.poll() is not None:
