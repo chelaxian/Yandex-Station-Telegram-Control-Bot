@@ -214,9 +214,16 @@ class Luna:
         return await self.json("POST", "audio/test", request_timeout=20)
 
     async def play(self, wav: bytes, key: str) -> dict:
-        (await self.device()).require("audio.jobs.v1")
+        device = await self.device()
+        device.require("audio.jobs.v1")
         if not 44 <= len(wav) <= 64 * 1024 * 1024:
             raise InvalidInput("Аудио: WAV до 64 МиБ")
+        if device.model == "yandexplum":
+            from .audio import apply_volume
+            volume = await self.volume()
+            # Until logical volume readings are verified on physical Plum, limit
+            # gain even if the fallback mixer reports 100% incorrectly.
+            wav = await asyncio.to_thread(apply_volume, wav, min(volume["percent"], 20))
         result = await self.json("POST", "audio/jobs", content=wav,
                                headers={"Content-Type": "audio/wav", "Idempotency-Key": key},
                                request_timeout=60)

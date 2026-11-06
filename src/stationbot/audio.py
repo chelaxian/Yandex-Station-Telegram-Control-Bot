@@ -1,11 +1,13 @@
 """Bounded local conversion and synthesis; the station is driven only through LUNA."""
 from __future__ import annotations
 
+import array
 import asyncio
 import io
 import math
 import shutil
 import struct
+import sys
 import wave
 
 from .errors import InvalidInput, Unavailable
@@ -14,6 +16,35 @@ MAX_INPUT = 20 * 1024 * 1024
 MAX_WAV = 60 * 1024 * 1024
 THEMES = {"yandex": (660, 880), "windows": (523, 659, 784), "cyberpunk": (220, 440, 330),
           "portal": (880, 660, 440), "mario": (659, 659, 523, 659, 784)}
+
+
+def apply_volume(data: bytes, percent: int) -> bytes:
+    """Scale a PCM16 WAV before a backend which bypasses logical volume."""
+    if type(percent) is not int or not 0 <= percent <= 100:
+        raise InvalidInput("Некорректное значение громкости станции")
+    try:
+        with wave.open(io.BytesIO(data), 'rb') as source:
+            params = source.getparams()
+            if params.sampwidth != 2 or params.comptype != 'NONE':
+                raise ValueError('PCM16 required')
+            pcm = source.readframes(params.nframes)
+            if len(pcm) != params.nframes * params.nchannels * 2:
+                raise ValueError('incomplete PCM')
+        samples = array.array('h')
+        samples.frombytes(pcm)
+        if sys.byteorder != 'little':
+            samples.byteswap()
+        for i, sample in enumerate(samples):
+            samples[i] = int(sample * percent / 100)
+        if sys.byteorder != 'little':
+            samples.byteswap()
+        output = io.BytesIO()
+        with wave.open(output, 'wb') as result:
+            result.setparams(params)
+            result.writeframes(samples.tobytes())
+        return output.getvalue()
+    except (wave.Error, EOFError, ValueError) as error:
+        raise InvalidInput('Невозможно безопасно применить громкость к WAV') from error
 
 
 async def process(argv: list[str], data: bytes, *, limit: int, timeout: float) -> bytes:
