@@ -59,6 +59,13 @@ async def test_menu_uses_live_capabilities_and_never_mutates(service, bot):
     assert all(b.text != "🕒 Часы" for row in menu.reply_markup.inline_keyboard for b in row)
 
 
+async def test_record_caption_reports_actual_wav_duration(service, bot):
+    dp = make_dispatcher(service)
+    await dp.feed_update(bot, update("/record 10"))
+    document = next(item for item in bot.session.sent if isinstance(item, SendDocument))
+    assert "Длительность записи: 1.00 сек." in document.caption
+
+
 async def test_relative_alarm_is_durable_and_cannot_be_created_by_viewer(service, bot):
     dp = make_dispatcher(service)
     before = time.time()

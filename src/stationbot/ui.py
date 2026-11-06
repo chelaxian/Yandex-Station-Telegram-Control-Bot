@@ -78,12 +78,19 @@ class Interface:
             row(*[button(f"{n}%", "volume", str(n)) for n in (60, 75, 90, 100)])
             row(prompt("🎚 Другая громкость", "volume"), page_button("🔄 Обновить", "volume"))
         elif page == "led":
-            row(button("🔴 Красный", "led", "ring", "#FF0000"), button("🔵 Синий", "led", "ring", "#0088FF"), button("🟢 Зелёный", "led", "ring", "#00FF44"))
-            row(button("🟣 Фиолетовый", "led", "ring", "#AA00FF"), button("⚪ Белый", "led", "ring", "#FFFFFF"))
-            row(button("🌈 Радуга", "led_effect", "rainbow"), button("💓 Пульс", "led_effect", "pulse"), button("🚓 Мигалка", "led_effect", "police"))
-            row(prompt("🎨 Свой цвет кольца", "led", "ring"), button("🔅 Штатная подсветка", "led_effect", "off"))
             device = await self.service.clients[station].device()
-            if device.logo_count:
+            ring = "led.ring.rgb" in device.features and device.ring_count > 0
+            logo = "led.logo" in device.features and device.logo_count > 0
+            zone = "ring" if ring else "logo" if logo else None
+            if zone:
+                row(button("🔴 Красный", "led", zone, "#FF0000"), button("🔵 Синий", "led", zone, "#0088FF"), button("🟢 Зелёный", "led", zone, "#00FF44"))
+                row(button("🟣 Фиолетовый", "led", zone, "#AA00FF"), button("⚪ Белый", "led", zone, "#FFFFFF"))
+            if ring:
+                row(button("🌈 Радуга", "led_effect", "rainbow"), button("💓 Пульс", "led_effect", "pulse"), button("🚓 Мигалка", "led_effect", "police"))
+                row(prompt("🎨 Свой цвет кольца", "led", "ring"), button("🔅 Штатная подсветка", "led_effect", "off"))
+            elif logo:
+                row(prompt("🎨 Свой цвет", "led", "logo"), button("🔅 Штатная подсветка", "led", "logo", "off"))
+            if ring and logo:
                 row(prompt("✨ Цвет логотипа", "led", "logo"), button("✨ Штатный логотип", "led", "logo", "off"))
         elif page in {"clock", "screen", "clock_get"}:
             row(*[button(label, "screen", name) for label, name in [("1337", "1337"), ("😎 COOL", "cool"), ("🆘 HELP", "help")]])

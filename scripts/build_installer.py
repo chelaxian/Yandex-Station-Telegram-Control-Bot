@@ -24,7 +24,7 @@ def main():
     output = root / "dist" / f"stationbot-{__version__}-installer"
     output.mkdir(parents=True, exist_ok=True)
     wheel = root / "dist" / f"telegram_control_luna-{__version__}-py3-none-any.whl"
-    copies = ["install.cmd", "install.ps1", "install.sh", "deploy/bootstrap.py", "requirements.lock.txt", "README.md", "NOTICE.md", "CHANGELOG.md", "docs/TELEGRAM_RELEASE_POST.md", "docs/assets/telegram-main-menu.png"]
+    copies = ["install.cmd", "install.ps1", "install.sh", "deploy/bootstrap.py", "scripts/kuyase_probe.py", "requirements.lock.txt", "README.md", "NOTICE.md", "CHANGELOG.md", "docs/TELEGRAM_RELEASE_POST.md", "docs/assets/telegram-main-menu.png"]
     for name in copies:
         target = output / name
         target.parent.mkdir(parents=True, exist_ok=True)

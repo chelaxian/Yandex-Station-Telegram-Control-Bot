@@ -1,3 +1,4 @@
+import asyncio
 import json
 import time
 from dataclasses import replace
@@ -8,8 +9,9 @@ from aiogram.types import Chat, Message, Update, User
 from test_telegram import bot as bot
 from test_telegram import update
 
+from stationbot.luna import Device
 from stationbot.presentation import result_card
-from stationbot.telegram import make_dispatcher
+from stationbot.telegram import main_menu, make_dispatcher
 
 
 def click(data, user=1, mid=10):
@@ -58,6 +60,50 @@ async def test_viewer_sees_reading_without_mutating_controls(service, bot):
     await dp.feed_update(bot, click("act:mini:volume_get", user=2))
     labels = [b.text for row in bot.session.sent[-1].reply_markup.inline_keyboard for b in row]
     assert "25%" not in labels and "🏠 Главное меню" in labels
+
+
+async def test_logo_only_station_exposes_working_led_controls(service, bot, monkeypatch):
+    async def logo_only():
+        return Device("yandexmini_3_pro", "aarch64", frozenset({"led.logo"}), 0, 6)
+
+    monkeypatch.setattr(service.clients["mini"], "device", logo_only)
+    _, menu = await main_menu(service, 1)
+    assert any(b.text == "🌈 Подсветка" for row in menu.inline_keyboard for b in row)
+    dp = make_dispatcher(service)
+    await dp.feed_update(bot, click("guide:mini:led"))
+    panel = bot.session.sent[-1]
+    labels = [b.text for row in panel.reply_markup.inline_keyboard for b in row]
+    assert "🔴 Красный" in labels and "🔅 Штатная подсветка" in labels
+    assert "🌈 Радуга" not in labels and "🎨 Свой цвет кольца" not in labels
+    await dp.feed_update(bot, click(button(panel, "🔴 Красный"), mid=11))
+    assert any(r.url.path == "/api/led/logo" and r.method == "POST" for r in service.fakes[0].requests)
+    await asyncio.sleep(0.11)
+    await dp.feed_update(bot, click("guide:mini:led", mid=12))
+    await dp.feed_update(bot, click(button(bot.session.sent[-1], "🔅 Штатная подсветка"), mid=13))
+    assert any(r.url.path == "/api/led/off/logo" and r.method == "POST" for r in service.fakes[0].requests)
+
+
+async def test_station_with_ring_and_logo_keeps_separate_controls(service, bot):
+    dp = make_dispatcher(service)
+    await dp.feed_update(bot, click("guide:mini:led"))
+    panel = bot.session.sent[-1]
+    labels = [b.text for row in panel.reply_markup.inline_keyboard for b in row]
+    assert "🌈 Радуга" in labels and "✨ Цвет логотипа" in labels
+    await dp.feed_update(bot, click(button(panel, "🔴 Красный"), mid=11))
+    assert any(r.url.path == "/api/led/ring" and r.method == "POST" for r in service.fakes[0].requests)
+
+
+async def test_unavailable_led_zones_do_not_offer_commands(service, bot, monkeypatch):
+    async def no_led():
+        return Device("yandexmini_3_pro", "aarch64", frozenset(), 0, 0)
+
+    monkeypatch.setattr(service.clients["mini"], "device", no_led)
+    _, menu = await main_menu(service, 1)
+    assert all(b.text != "🌈 Подсветка" for row in menu.inline_keyboard for b in row)
+    dp = make_dispatcher(service)
+    await dp.feed_update(bot, click("guide:mini:led"))
+    labels = [b.text for row in bot.session.sent[-1].reply_markup.inline_keyboard for b in row]
+    assert "🔴 Красный" not in labels and "🔅 Штатная подсветка" not in labels
 
 
 async def test_expired_button_does_not_reach_hardware(service, bot):

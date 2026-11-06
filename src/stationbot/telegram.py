@@ -4,6 +4,7 @@ import asyncio
 import io
 import logging
 import time
+import wave
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -82,7 +83,8 @@ async def main_menu(service: Service, user: int) -> tuple[str, InlineKeyboardMar
         text = card("🏠 Управление станцией", ["🟢 На связи", f"📞 Интерком: {'включён' if station in service.interactions.calls else 'выкл'}", f"🛡 Охрана: {'включена' if station in service.interactions.guards else 'выкл'}", "", "Выберите раздел ниже 👇"], label)
         if "audio.volume.alsa" in device.features:
             rows.append([("🔉 Громкость", f"act:{station}:volume_get")])
-        if "led.ring.rgb" in device.features and device.ring_count:
+        if (("led.ring.rgb" in device.features and device.ring_count)
+                or ("led.logo" in device.features and device.logo_count)):
             rows.append([("🌈 Подсветка", f"guide:{station}:led")])
         # clock.available, not the model name or a substring in features, is authoritative.
         try:
@@ -173,7 +175,12 @@ def make_dispatcher(service: Service) -> Dispatcher:
         page = {"play": "sounds", "sound_add": "sounds", "sound_delete": "sounds", "tts": "tts", "siren": "siren", "ban": "siren", "theme_test": "theme", "upload_script": "scripts", "restore": "backup", "stop": "tts", "cancel_timer": "timers"}.get(action, action)
         buttons = await ui.keyboard(user, station, page, value)
         if isinstance(value, bytes):
-            caption = card({"photo": "📸 Снимок готов", "video": "🎥 Видео готово", "backup": "📦 Резервная копия готова"}.get(action, "🎙 Запись готова"), ["Файл отправлен в этот чат."], label)
+            lines = ["Файл отправлен в этот чат."]
+            if action == "record":
+                with wave.open(io.BytesIO(value), "rb") as recording:
+                    duration = recording.getnframes() / recording.getframerate()
+                lines.insert(0, f"⏱ Длительность записи: {duration:.2f} сек.")
+            caption = card({"photo": "📸 Снимок готов", "video": "🎥 Видео готово", "backup": "📦 Резервная копия готова"}.get(action, "🎙 Запись готова"), lines, label)
             if action == "photo":
                 await message.answer_photo(BufferedInputFile(value, filename="photo.jpg"), caption=caption, parse_mode="HTML", reply_markup=buttons)
             elif action == "video":
