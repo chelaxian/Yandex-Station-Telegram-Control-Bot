@@ -54,9 +54,9 @@ async def test_plum_playback_follows_station_volume_and_blocks_zero(config):
 
     result, requests = await check(40)
     assert result["station_volume_percent"] == 40
-    assert result["playback_volume_percent"] == 20
+    assert result["playback_volume_percent"] == 40
     with wave.open(io.BytesIO(requests[-1].content), "rb") as wav:
-        assert max(abs(sample) for sample in struct.unpack(f"<{wav.getnframes()}h", wav.readframes(wav.getnframes()))) <= 1000
+        assert max(abs(sample) for sample in struct.unpack(f"<{wav.getnframes()}h", wav.readframes(wav.getnframes()))) <= 1801
 
     with pytest.raises(Unavailable):
         await check(0)

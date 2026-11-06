@@ -223,9 +223,7 @@ class Luna:
             volume = await self.volume()
             if volume["percent"] == 0:
                 raise Unavailable("Громкость станции 0% — воспроизведение отключено")
-            # Until logical volume readings are verified on physical Plum, limit
-            # gain even if the fallback mixer reports 100% incorrectly.
-            playback_volume = min(volume["percent"], 20)
+            playback_volume = volume["percent"]
             wav = await asyncio.to_thread(apply_volume, wav, playback_volume)
         result = await self.json("POST", "audio/jobs", content=wav,
                                headers={"Content-Type": "audio/wav", "Idempotency-Key": key},
