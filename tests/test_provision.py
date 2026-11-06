@@ -9,7 +9,17 @@ from unittest.mock import Mock
 import pytest
 
 from stationbot import provision, supervisor
-from stationbot.provision import PROFILES, Adb, ProvisionError, identify, serial_address, starter
+from stationbot.provision import (
+    PROFILES,
+    RUNTIME_COMMIT,
+    RUNTIME_RELEASE,
+    Adb,
+    ProvisionError,
+    identify,
+    missing_features,
+    serial_address,
+    starter,
+)
 
 
 def test_model_qualification_never_aliases_midi_to_station2():
@@ -32,6 +42,22 @@ def test_device_address_cannot_be_a_shell_command_or_public_host(value):
     with pytest.raises(ProvisionError):
         serial_address(value)
     assert serial_address('192.168.1.2') == '192.168.1.2:5555'
+
+
+def test_runtime_is_pinned_to_official_luna_release():
+    assert RUNTIME_RELEASE == 'v0.2.23'
+    assert RUNTIME_COMMIT == 'b6ddd7f4e70f985256d01343899697a076f6ce05'
+    assert PROFILES['yandexmini_3_pro']['sha256'] == 'f953d7d80c64e71822839d01933ba4a97254c9d974710f911edfe9d16f01668d'
+    assert PROFILES['yandexstation_2']['sha256'] == '5659c67c8d40fd0091173a186cf2ed7de4ff047cfb107c8cac932c64b13b6cdb'
+    assert PROFILES['yandexplum']['sha256'] == '442028c98420d42dd9a61ff21c70f638c48644a41b524c1025afd6a753b9a5af'
+
+
+def test_contract_check_reports_exact_missing_capability():
+    good = {'model': 'yandexplum', 'features': ['audio.jobs.v1', 'owner.tools.v1', 'owner.speech.phase.v1']}
+    bad = {'model': 'yandexplum', 'features': ['audio.jobs.v1']}
+    assert missing_features(good, 'yandexplum', True) == set()
+    assert missing_features(bad, 'yandexplum', True) == {'owner.tools.v1', 'owner.speech.phase.v1'}
+    assert missing_features(good, 'yandexstation_2', True) == {'model'}
 
 
 def test_unqualified_probe_and_bad_binary_perform_no_remote_write(tmp_path):
@@ -97,12 +123,42 @@ def test_recover_recreates_forward_after_transport_reconnect(monkeypatch):
         def forward(self, port, *, refresh=False):
             self.forwarded = (port, refresh)
 
+        def promote_qualified(self):
+            pass
+
     fake = FakeAdb('adb', '192.168.1.2')
     monkeypatch.setattr(supervisor, 'Adb', lambda executable, serial: fake)
-    device_json = Mock(side_effect=[OSError('stale tunnel'), {'model': 'yandexplum'}])
+    device_json = Mock(side_effect=[OSError('stale tunnel'), {
+        'model': 'yandexplum',
+        'features': ['audio.jobs.v1', 'owner.tools.v1', 'owner.speech.phase.v1'],
+    }])
     monkeypatch.setattr(supervisor, 'device_json', device_json)
     supervisor.recover({'serial': '192.168.1.2:5555', 'model': 'yandexplum', 'port': 18210}, 'adb')
     assert fake.forwarded == (18210, True)
+
+
+def test_recover_rolls_back_update_that_loses_owner_contract(monkeypatch):
+    class FakeAdb:
+        def __init__(self, executable, serial):
+            self.restored = None
+
+        def restore_qualified(self, port, model, owner_tools=True):
+            self.restored = (port, model, owner_tools)
+            return {'model': model, 'features': ['audio.jobs.v1', 'owner.tools.v1', 'owner.speech.phase.v1']}
+
+        def promote_qualified(self):
+            pass
+
+    fake = FakeAdb('adb', '192.168.1.2')
+    monkeypatch.setattr(supervisor, 'Adb', lambda executable, serial: fake)
+    monkeypatch.setattr(
+        supervisor,
+        'device_json',
+        Mock(return_value={'model': 'yandexplum', 'features': ['audio.jobs.v1']}),
+    )
+    station = {'id': 'station_1', 'serial': '192.168.1.2:5555', 'model': 'yandexplum', 'port': 18210, 'owner_tools': True}
+    supervisor.recover(station, 'adb')
+    assert fake.restored == (18210, 'yandexplum', True)
 
 
 def test_recover_reports_forward_that_still_does_not_reach_luna(monkeypatch):
@@ -115,9 +171,13 @@ def test_recover_reports_forward_that_still_does_not_reach_luna(monkeypatch):
         def start(self): pass
         def forward(self, port, *, refresh=False): pass
 
+        def restore_qualified(self, port, model, owner_tools=True):
+            raise ProvisionError('qualified runtime unavailable')
+
     monkeypatch.setattr(supervisor, 'Adb', FakeAdb)
-    monkeypatch.setattr(supervisor, 'device_json', Mock(side_effect=[OSError('stale tunnel'), OSError('forward still dead')]))
-    with pytest.raises(OSError):
+    monkeypatch.setattr(supervisor, 'device_json', Mock(side_effect=OSError('forward still dead')))
+    monkeypatch.setattr(supervisor.time, 'sleep', lambda seconds: None)
+    with pytest.raises(ProvisionError, match='qualified runtime unavailable'):
         supervisor.recover({'serial': '192.168.1.2:5555', 'model': 'yandexplum', 'port': 18210}, 'adb')
 
 
@@ -127,6 +187,72 @@ def test_adb_failure_reports_the_last_tool_diagnostic(monkeypatch):
     adb = Adb("adb", "192.168.1.2")
     with pytest.raises(ProvisionError, match="device unauthorized"):
         adb.run(["get-state"])
+
+
+def test_adb_shell_protocol_avoids_backslash_escapes(monkeypatch):
+    adb = Adb("adb", "192.168.1.2")
+    output = chr(10).join(["__STATIONBOT_RESULT__", "value", "", "__STATIONBOT_EXIT__0", ""])
+    monkeypatch.setattr(
+        provision.subprocess,
+        "run",
+        Mock(return_value=subprocess.CompletedProcess(["adb"], 0, output, "")),
+    )
+    assert adb.shell("id -u") == "value"
+    command = provision.subprocess.run.call_args.args[0]
+    assert "echo __STATIONBOT_RESULT__" in command[-1]
+    assert "echo __STATIONBOT_EXIT__$rc" in command[-1]
+    assert "printf" not in command[-1]
+
+
+def test_adb_shell_protocol_accepts_output_without_trailing_newline(monkeypatch):
+    adb = Adb("adb", "192.168.1.2")
+    output = "__STATIONBOT_RESULT__" + chr(10) + "firmware-value__STATIONBOT_EXIT__0"
+    monkeypatch.setattr(
+        provision.subprocess,
+        "run",
+        Mock(return_value=subprocess.CompletedProcess(["adb"], 0, output, "")),
+    )
+    assert adb.shell("cat firmware") == "firmware-value"
+
+
+def test_install_previous_binary_uses_hard_link_without_second_copy(monkeypatch, tmp_path):
+    adb = Adb("adb", "192.168.1.2")
+    commands = []
+    adb.probe = Mock(return_value="yandexplum")
+    adb.shell = Mock(side_effect=lambda command: commands.append(command) or "")
+    adb.run = Mock()
+    adb.stop = Mock()
+    adb.start = Mock()
+    adb.forward = Mock()
+    binary = tmp_path / "luna-yandexplum"
+    binary.write_bytes(b"qualified")
+    good = {"model": "yandexplum", "features": ["audio.jobs.v1", "owner.tools.v1", "owner.speech.phase.v1"]}
+    expected = provision.hashlib.sha256(b"qualified").hexdigest()
+    monkeypatch.setitem(PROFILES, "yandexplum", {**PROFILES["yandexplum"], "sha256": expected})
+    monkeypatch.setattr(provision, "device_json", Mock(return_value=good))
+    monkeypatch.setattr(provision, "apply_update_policy", Mock())
+
+    assert adb.install(tmp_path, 18210)["model"] == "yandexplum"
+
+    joined = "\n".join(commands)
+    assert "ln -f /data/local/stationbot-luna/luna /data/local/stationbot-luna/luna.previous" in joined
+    assert "cp -p /data/local/stationbot-luna/luna /data/local/stationbot-luna/luna.previous" not in joined
+
+
+def test_qualified_rollback_uses_hard_link_without_copy(monkeypatch):
+    adb = Adb("adb", "192.168.1.2")
+    commands = []
+    adb.shell = Mock(side_effect=lambda command: commands.append(command) or "")
+    adb.stop = Mock()
+    adb.start = Mock()
+    adb.forward = Mock()
+    good = {'model': 'yandexplum', 'features': ['audio.jobs.v1', 'owner.tools.v1', 'owner.speech.phase.v1']}
+    monkeypatch.setattr(provision, "device_json", Mock(return_value=good))
+    monkeypatch.setattr(provision, "suspend_updates", Mock())
+    assert adb.restore_qualified(18210, "yandexplum", True) == good
+    joined = "\n".join(commands)
+    assert "ln /data/local/stationbot-luna/luna.qualified /data/local/stationbot-luna/luna" in joined
+    assert "cp /data/local/stationbot-luna/luna.qualified" not in joined
 
 
 def test_probe_with_adapter_noise_reports_unqualified_profile_not_opaque_failure():

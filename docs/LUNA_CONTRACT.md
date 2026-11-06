@@ -1,8 +1,8 @@
 # Проверенный контракт LUNA
 
-## Расширение beta 3.0.0b1
+## Контракт 3.0.1
 
-Источник: [`0f2393e`](https://github.com/chelaxian/luna/commit/0f2393e4d613472c79755b358abc3047a9466963), ветка `feat/telegram-complete-runtime`. Это реализованные HTTP handlers, а не предполагаемые upstream endpoints. Новые маршруты проходят общий browser guard и ограничение тела запроса. Аутентификация admin API не добавлена: требуется loopback или аутентифицирующий proxy.
+Источник с 3.0.1 — официальный [LUNA v0.2.23](https://github.com/nyakokitsu/luna/releases/tag/v0.2.23), commit [`b6ddd7f`](https://github.com/nyakokitsu/luna/commit/b6ddd7f4e70f985256d01343899697a076f6ce05). Аппаратная адаптация Station 2 / Mini 3 Pro принята в [PR #24](https://github.com/nyakokitsu/luna/pull/24), audio jobs и owner APIs — в [PR #28](https://github.com/nyakokitsu/luna/pull/28). Новые маршруты проходят общий browser guard и ограничение тела запроса. Аутентификация admin API не добавлена: требуется loopback или аутентифицирующий proxy.
 
 | Контракт | Endpoint | Семантика |
 |---|---|---|
@@ -49,11 +49,11 @@ LUNA обычно возвращает HTTP 400 даже для недоступ
 |---|---|---|---|
 | Станция 2 YNDX00051 .50 | `yandexstation_2` | framebuffer ring 89/BGRX, 4 raw microphone channels, PCM `dmix_spk_plug`, volume-up событие | нет logo/clock; platform `yandexmidi` не означает коммерческую Midi |
 | Мини 3 Про YNDX00059 .50 | `yandexmini_3_pro` / asset pickle | ring16/logo6, 36 clock segments, 3 raw microphone channels, PCM `speakers`, volume-up событие | не bergamot; clock text_available=false |
-| Лайт 2 Plum .50 | `yandexplum` | station backend объявляет 3-zone RGB, 36 clock segments, Quasar microphone и PCM `plug:dmix_spk`; точная пара board/прошивки уже проверена локальным shared-audio/Quasar-стендом | **экспериментально**: новый `luna-yandexplum` и установщик ещё не проверены на реальной Лайт 2; нужен отчёт по LED, часам, записи и слышимому звуку |
+| Лайт 2 Plum .50 | `yandexplum` | station backend объявляет 3-zone RGB, 36 clock segments, Quasar microphone и PCM `plug:dmix_spk`; владелец реальной Лайт 2 подтвердил LED, микрофоны, саундборд, отслеживание громкости 20/30/40%, блокировку при 0% и нормальную громкость без перекоса | **экспериментально**: reboot-persistence и полная матрица TTS/тем/таймеров/интеркома/часов/очистки ещё не проверены |
 
 LED readback, release, clock readback и nonzero PCM ранее проверены. Владелец подтвердил слышимый прямой ALSA-тест обеих; для последующего HTTP audio/test отдельного слухового подтверждения нет. Новая версия бота не переиспользует прямой ALSA из этих испытаний.
 
-LUNA на устройствах была запущена временно из `/tmp`, persistence/reboot не проверены. `doctor` не устанавливает LUNA и не создаёт tunnel. Локальный port-forward одного компьютера не является доступом из Docker/CT126.
+Исторические аппаратные испытания начинались во временного `/tmp`-runtime. Текущий установщик использует managed-каталог и host Supervisor, но сохранение LUNA после физической перезагрузки колонки ещё не квалифицировано. `doctor` не устанавливает LUNA и не создаёт tunnel. Локальный port-forward одного компьютера не является доступом из Docker/CT126.
 
 ## Отсутствующие контракты
 

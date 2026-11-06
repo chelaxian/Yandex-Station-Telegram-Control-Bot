@@ -14,9 +14,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--serial", required=True)
     parser.add_argument("--port", required=True, type=int)
+    parser.add_argument("--remote-port", type=int, default=18100)
     args = parser.parse_args()
     if not 1024 <= args.port <= 65535:
         parser.error("port must be 1024..65535")
+    if not 1024 <= args.remote_port <= 65535:
+        parser.error("remote-port must be 1024..65535")
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
     ready = False
     while True:
@@ -34,7 +37,7 @@ def main():
             forwards = run(["forward", "--list"])
             if forwards.returncode:
                 raise RuntimeError("ADB forward listing failed")
-            expected = [args.serial, f"tcp:{args.port}", "tcp:8100"]
+            expected = [args.serial, f"tcp:{args.port}", f"tcp:{args.remote_port}"]
             entries = [line.split() for line in forwards.stdout.splitlines()]
             if expected not in entries:
                 if any(len(e) > 1 and e[1] == expected[1] for e in entries):

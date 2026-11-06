@@ -15,14 +15,15 @@ from .network import is_lan_address
 
 ROOT = "/data/local/stationbot-luna"
 REMOTE_PORT = 18100
-RUNTIME_COMMIT = "0f2393e4d613472c79755b358abc3047a9466963"
+RUNTIME_RELEASE = "v0.2.23"
+RUNTIME_COMMIT = "b6ddd7f4e70f985256d01343899697a076f6ce05"
 PROFILES = {
     "yandexmini_3_pro": {
         "label": "Мини 3 Про",
         "board": "Yandex Pickle EVT",
         "firmware": ".50.4795647264.",
         "binary": "luna-pickle",
-        "sha256": "c32925698f185242099f005a236893802df3d24416b185f576037013bb604b62",
+        "sha256": "f953d7d80c64e71822839d01933ba4a97254c9d974710f911edfe9d16f01668d",
         "audio_pcm": "speakers",
     },
     "yandexstation_2": {
@@ -30,7 +31,7 @@ PROFILES = {
         "board": "Yandex Station Midi",
         "firmware": ".50.4794649087.",
         "binary": "luna-yandexstation_2",
-        "sha256": "3c046cd1ac3937830e89e739a7067a6c32c9b79993125d65b16e37ca3b04eaca",
+        "sha256": "5659c67c8d40fd0091173a186cf2ed7de4ff047cfb107c8cac932c64b13b6cdb",
         "audio_pcm": "dmix_spk_plug",
     },
     "yandexplum": {
@@ -38,7 +39,7 @@ PROFILES = {
         "board": "Yandex Plum EVT2",
         "firmware": ".50.4795647582.",
         "binary": "luna-yandexplum",
-        "sha256": "1c0f9ac2d5baa3d214b5a5ff5f744ec2c6d4096a073a177641875a12ebe3a4b4",
+        "sha256": "442028c98420d42dd9a61ff21c70f638c48644a41b524c1025afd6a753b9a5af",
         "audio_pcm": "plug:dmix_spk",
         "experimental": True,
     },
@@ -94,9 +95,38 @@ def device_json(port: int):
         return json.loads(response.read(1024 * 1024))
 
 
-def disable_updates(port: int):
-    """LUNA defaults to upstream auto-update, which replaces the pinned runtime with a
-    build lacking owner tools. Persist updates.enabled=false before the first check (60 s)."""
+def required_features(owner_tools: bool) -> set[str]:
+    return {"audio.jobs.v1"} | ({"owner.tools.v1", "owner.speech.phase.v1"} if owner_tools else set())
+
+
+def missing_features(device: dict, model: str, owner_tools: bool) -> set[str]:
+    if device.get("model") != model:
+        return {"model"}
+    return required_features(owner_tools) - set(device.get("features", []))
+
+
+def apply_update_policy(port: int):
+    """Enable upstream updates while the host supervisor keeps a qualified rollback."""
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    url = f"http://127.0.0.1:{port}/api/settings"
+    with opener.open(url, timeout=5) as response:
+        settings = json.loads(response.read(1024 * 1024))
+    updates = settings.setdefault("updates", {})
+    updates["enabled"] = True
+    interval = updates.get("interval_minutes", 360)
+    if type(interval) is not int or not 5 <= interval <= 1440:
+        updates["interval_minutes"] = 360
+    request = urllib.request.Request(url, data=json.dumps(settings).encode(), method="PUT", headers={"Content-Type": "application/json"})
+    with opener.open(request, timeout=5):
+        pass
+    with opener.open(url, timeout=5) as response:
+        persisted = json.loads(response.read(1024 * 1024)).get("updates", {})
+        if persisted.get("enabled") is not True or not 5 <= persisted.get("interval_minutes", 0) <= 1440:
+            raise ProvisionError("Не удалось применовать управляемую политику обновлений LUNA")
+
+
+def suspend_updates(port: int):
+    """Disable a bad upstream release after rollback until a new bot release qualifies it."""
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     url = f"http://127.0.0.1:{port}/api/settings"
     with opener.open(url, timeout=5) as response:
@@ -107,7 +137,7 @@ def disable_updates(port: int):
         pass
     with opener.open(url, timeout=5) as response:
         if json.loads(response.read(1024 * 1024)).get("updates", {}).get("enabled") is not False:
-            raise ProvisionError("Не удалось отключить автообновление LUNA")
+            raise ProvisionError("Не удалось приостановить автообновление LUNA")
 
 
 class Adb:
@@ -127,11 +157,16 @@ class Adb:
 
     def shell(self, command: str):
         marker = "__STATIONBOT_RESULT__"
-        source = f"printf '{marker}\\n'; ( set -e; {command} ); rc=$?; printf '\\n__STATIONBOT_EXIT__%s\\n' \"$rc\""
+        # Some station ADB transports unescape and destroy backslash sequences in
+        # printf format strings. Literal echo calls keep the protocol readable on
+        # Plum, Pickle, and Station 2 alike.
+        source = f"echo {marker}; ( set -e; {command} ); rc=$?; echo __STATIONBOT_EXIT__$rc"
         result = self.run(["-s", self.serial, "shell", "/bin/sh -c " + shlex.quote(source)])
-        if marker + "\n" not in result or "\n__STATIONBOT_EXIT__0" not in result:
+        # A file-ending command such as cat(1) may have no trailing newline on the
+        # remote side, so require the exact terminal sentinel without assuming one.
+        if marker + "\n" not in result or "__STATIONBOT_EXIT__0" not in result[-64:]:
             raise ProvisionError("Проверка или установка на колонке не завершена; чужие процессы не останавливались")
-        return result.split(marker + "\n", 1)[1].rsplit("\n__STATIONBOT_EXIT__", 1)[0].strip()
+        return result.split(marker + "\n", 1)[1].rsplit("__STATIONBOT_EXIT__", 1)[0].strip()
 
     def connect(self):
         self.run(["connect", self.serial])
@@ -187,7 +222,7 @@ class Adb:
         if not binary.is_file() or hashlib.sha256(binary.read_bytes()).hexdigest() != profile["sha256"]:
             raise ProvisionError("Бинарник LUNA отсутствует или SHA-256 не совпадает с закреплённым runtime")
         # Refuse an unrelated directory and reserve space before transferring.
-        self.shell(f"if [ -e {ROOT} ] && [ ! -f {ROOT}/managed-v1 ]; then exit 1; fi; test $(df -Pk /data | tail -n 1 | awk '{{print $4}}') -ge 16384")
+        self.shell(f"if [ -e {ROOT} ] && [ ! -f {ROOT}/managed-v1 ]; then exit 1; fi; test $(df -Pk /data | tail -n 1 | awk '{{print $4}}') -ge 8192")
         self.shell(f"umask 077; mkdir -p {ROOT}/data; touch {ROOT}/managed-v1; mkdir -p /tmp/stationbot-luna-audio; if [ ! -e {ROOT}/data/audio-jobs ] && [ ! -L {ROOT}/data/audio-jobs ]; then ln -s /tmp/stationbot-luna-audio {ROOT}/data/audio-jobs; fi")
         for attempt in (1, 2):
             try:
@@ -200,21 +235,21 @@ class Adb:
                 time.sleep(3)
                 self.connect()
         self.shell(f"test $(sha256sum {ROOT}/luna.next | cut -d' ' -f1) = {profile['sha256']}")
+        self.shell(f"ln -f {ROOT}/luna.next {ROOT}/luna.qualified.next; test $(sha256sum {ROOT}/luna.qualified.next | cut -d' ' -f1) = {profile['sha256']}")
         start = starter(owner_tools, profile)
         # Write fixed generated text through a literal quoted shell argument.
-        self.shell(f"umask 077; printf %s {shlex.quote(start)} >{ROOT}/start.sh.next; chmod 700 {ROOT}/start.sh.next; if [ -f {ROOT}/start.sh ]; then cp -p {ROOT}/start.sh {ROOT}/start.sh.previous; fi; if [ -f {ROOT}/luna ]; then cp -p {ROOT}/luna {ROOT}/luna.previous; fi")
+        self.shell(f"umask 077; printf %s {shlex.quote(start)} >{ROOT}/start.sh.next; chmod 700 {ROOT}/start.sh.next; if [ -f {ROOT}/start.sh ]; then cp -p {ROOT}/start.sh {ROOT}/start.sh.previous; fi; if [ -f {ROOT}/luna ]; then ln -f {ROOT}/luna {ROOT}/luna.previous; fi")
         self.stop()
         try:
-            self.shell(f"mv {ROOT}/luna.next {ROOT}/luna; chmod 700 {ROOT}/luna; mv {ROOT}/start.sh.next {ROOT}/start.sh")
+            self.shell(f"mv {ROOT}/luna.next {ROOT}/luna; chmod 700 {ROOT}/luna; mv {ROOT}/luna.qualified.next {ROOT}/luna.qualified; chmod 700 {ROOT}/luna.qualified; mv {ROOT}/start.sh.next {ROOT}/start.sh")
             self.start()
             self.forward(port)
             device = {}
             for _ in range(30):
                 try:
                     device = device_json(port)
-                    disable_updates(port)
-                    required = {"audio.jobs.v1"} | ({"owner.tools.v1", "owner.speech.phase.v1"} if owner_tools else set())
-                    if device.get("model") == model and required <= set(device.get("features", [])):
+                    if not missing_features(device, model, owner_tools):
+                        apply_update_policy(port)
                         return {"serial": self.serial, "port": port, "model": model, "sha256": profile["sha256"]}
                 except (OSError, ValueError):
                     pass
@@ -224,12 +259,50 @@ class Adb:
             self.stop()
             restored = self.shell(f"if [ -f {ROOT}/luna.previous ] && [ -f {ROOT}/start.sh.previous ]; then cp -p {ROOT}/luna.previous {ROOT}/luna; cp -p {ROOT}/start.sh.previous {ROOT}/start.sh; printf restored; fi")
             if restored == "restored":
+                self.shell(f"ln -f {ROOT}/luna {ROOT}/luna.qualified; chmod 700 {ROOT}/luna.qualified")
                 self.start()
             raise
 
+    def restore_qualified(self, port: int, model: str, owner_tools: bool = True):
+        """Roll back a failed upstream auto-update to the last qualified binary."""
+        profile = PROFILES[model]
+        digest = profile["sha256"]
+        self.shell(
+            f"test -f {ROOT}/luna.qualified; "
+            f"test $(sha256sum {ROOT}/luna.qualified | cut -d' ' -f1) = {digest}"
+        )
+        self.stop()
+        try:
+            self.shell(f"mv {ROOT}/luna {ROOT}/luna.rejected; ln {ROOT}/luna.qualified {ROOT}/luna; chmod 700 {ROOT}/luna")
+            self.start()
+            self.forward(port, refresh=True)
+            for _ in range(15):
+                try:
+                    device = device_json(port)
+                    if not missing_features(device, model, owner_tools):
+                        suspend_updates(port)
+                        self.shell(f"rm -f {ROOT}/luna.rejected")
+                        return device
+                except (OSError, ValueError):
+                    pass
+                time.sleep(1)
+        except Exception:
+            self.shell(f"if [ -f {ROOT}/luna.rejected ]; then rm -f {ROOT}/luna; mv {ROOT}/luna.rejected {ROOT}/luna; fi")
+            raise
+        raise ProvisionError("Не удалось откатить LUNA на квалифицированный runtime")
+
+    def promote_qualified(self):
+        """Keep the last contract-passing binary as the no-extra-space rollback link."""
+        self.shell(
+            f"test -f {ROOT}/luna; test -f {ROOT}/luna.qualified; "
+            f"a=$(sha256sum {ROOT}/luna | cut -d' ' -f1); "
+            f"b=$(sha256sum {ROOT}/luna.qualified | cut -d' ' -f1); "
+            f"[ \"$a\" = \"$b\" ] || ln -f {ROOT}/luna {ROOT}/luna.qualified"
+        )
+
     def diagnose(self, model, device, owner_tools):
         """Safe read-only summary for support; contains no secrets."""
-        required = {"audio.jobs.v1"} | ({"owner.tools.v1", "owner.speech.phase.v1"} if owner_tools else set())
+        required = required_features(owner_tools)
         parts = []
         if device:
             parts.append(f"модель={device.get('model')}; нет функций: {', '.join(sorted(required - set(device.get('features', [])))) or '-'}")

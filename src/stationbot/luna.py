@@ -15,7 +15,7 @@ import httpx
 from .config import StationConfig
 from .errors import InvalidInput, TransportError, Unavailable
 
-CONTRACT_COMMIT = "0f2393e4d613472c79755b358abc3047a9466963"
+CONTRACT_COMMIT = "b6ddd7f4e70f985256d01343899697a076f6ce05"
 MAX_JSON = 1024 * 1024
 MAX_RECORDING = 12 * 1024 * 1024
 

@@ -13,7 +13,7 @@ from pathlib import Path
 
 from . import __version__
 from .instance import InstanceLock
-from .provision import Adb, ProvisionError, device_json
+from .provision import Adb, ProvisionError, device_json, missing_features
 
 logger = logging.getLogger(__name__)
 
@@ -27,11 +27,19 @@ def load_environment(root: Path):
 
 def recover(station, adb_path):
     adb = Adb(adb_path, station["serial"])
+    owner_tools = station.get("owner_tools", True)
     try:
         device = device_json(station["port"])
-        if device.get("model") == station["model"]:
+        if not missing_features(device, station["model"], owner_tools):
+            adb.promote_qualified()
             return
-        raise ProvisionError("Модель по локальному порту изменилась")
+        logger.warning(
+            "luna_contract_failed id=%s missing=%s; restoring qualified runtime",
+            station.get("id", "unknown"),
+            ",".join(sorted(missing_features(device, station["model"], owner_tools))),
+        )
+        adb.restore_qualified(station["port"], station["model"], owner_tools)
+        return
     except OSError:
         pass
     adb.connect()
@@ -39,9 +47,24 @@ def recover(station, adb_path):
         raise ProvisionError("После переподключения идентификация изменилась")
     adb.start()
     adb.forward(station["port"], refresh=True)
-    recovered = device_json(station["port"])
-    if recovered.get("model") != station["model"]:
-        raise ProvisionError("Пересозданный ADB forward указывает на другую модель LUNA")
+    recovered = {}
+    for _ in range(15):
+        try:
+            recovered = device_json(station["port"])
+            failed = missing_features(recovered, station["model"], owner_tools)
+            if not failed:
+                adb.promote_qualified()
+                return
+            logger.warning(
+                "luna_contract_failed id=%s missing=%s; restoring qualified runtime",
+                station.get("id", "unknown"),
+                ",".join(sorted(failed)),
+            )
+            adb.restore_qualified(station["port"], station["model"], owner_tools)
+            return
+        except (OSError, ValueError):
+            time.sleep(1)
+    adb.restore_qualified(station["port"], station["model"], owner_tools)
 
 
 def main():
@@ -78,6 +101,7 @@ def main():
         while not stopping:
             for station in plan["stations"]:
                 try:
+                    station["owner_tools"] = plan["owner_tools"]
                     recover(station, plan["adb"])
                 except (OSError, ValueError, ProvisionError) as error:
                     logger.warning("station_unavailable id=%s error=%s", station["id"], type(error).__name__)

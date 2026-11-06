@@ -1,4 +1,6 @@
 import json
+import runpy
+import sys
 
 import pytest
 from test_telegram import bot as bot
@@ -16,6 +18,14 @@ def test_proxy_only_loaded_from_environment(config, monkeypatch):
         config.telegram_proxy()
     monkeypatch.setenv("TEST_TELEGRAM_PROXY", "http://127.0.0.1:1081")
     assert config.telegram_proxy() == "http://127.0.0.1:1081"
+
+
+def test_adb_forward_helper_validates_managed_remote_port(monkeypatch, capsys):
+    module = runpy.run_path("deploy/adb_luna_forward.py", run_name="adb_luna_forward_test")
+    monkeypatch.setattr(sys, "argv", ["adb_luna_forward.py", "--serial", "192.168.1.2:5555", "--port", "18200", "--remote-port", "70000"])
+    with pytest.raises(SystemExit):
+        module["main"]()
+    assert "remote-port must be 1024..65535" in capsys.readouterr().err
 
 
 def test_legacy_history_read_only_and_station_isolated(tmp_path):

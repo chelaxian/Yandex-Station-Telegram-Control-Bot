@@ -1,8 +1,10 @@
 # Развёртывание и откат
 
-## Дополнения 3.0.0b1
+## Текущий контракт и обновление
 
-На хосте необходимы `ffmpeg` и `espeak-ng` (в Dockerfile включены). Квалифицированный beta-контракт — LUNA0f2393e с audio.jobs.v1 и owner.speech.phase.v1 для автоматических тем. Для терминала/скриптов/образов одновременно нужны `LUNA_ENABLE_OWNER_TOOLS=1` у LUNA и `allow_owner_tools=true` в секции станции. Owner API остаётся loopback, это не публичный shell.
+На хосте необходимы `ffmpeg` и `espeak-ng` (в Dockerfile включены). Квалифицированный контракт с 3.0.1 — официальный LUNA v0.2.23 (`b6ddd7f`) с audio.jobs.v1, owner.tools.v1 и owner.speech.phase.v1. Для терминала/скриптов/образов одновременно нужны `LUNA_ENABLE_OWNER_TOOLS=1` у LUNA и `allow_owner_tools=true` в секции станции. Owner API остаётся loopback, это не публичный shell.
+
+Автообновление LUNA включено только вместе с host Supervisor. Он сохраняет отдельный квалифицированный бинарник, после каждого рестарта проверяет `/api/device` на модель и обязательные capabilities, откатывает сломанное upstream-обновление и приостанавливает дальнейшие попытки до следующего проверенного релиза бота. Это защита контракта, а не безусловное обновление любой новой версией.
 
 `deploy/portable-launch.py --mode host|station --config ... --env-file ... --check` проверяет подготовленный Python3.10+, зависимости, медиа-утилиты, приватность env и конфигурацию. Без `--check` запускает тот же бот. Station mode требует локальную LUNA. Launcher не устанавливает Python и не редактирует boot/rootfs; station-local offline distribution и модельный автозапуск пока не квалифицированы. Не запускайте его параллельно с хостовым poller того же токена.
 
@@ -27,7 +29,7 @@ ZIP нового формата восстанавливается вложен�
 
 Остановка: `systemctl stop stationbot`. Бот корректно завершает polling, освобождает HTTP sessions и БД. Нельзя считать флаг `enabled` или запущенный PID доказательством работающего Telegram UI.
 
-Если SSH сервера станции запрещает TCP forwarding, не меняйте его конфигурацию вслепую. Для уже авторизованных ADB-устройств можно использовать локальный `adb forward` к порту LUNA. `deploy/adb_luna_forward.py` поддерживает конкретный serial и одну port mapping, не сбрасывает другие mappings и не пересоздаёт исправную mapping посреди записи. ADB server следует запускать отдельной службой на loopback, а не привязывать его lifetime к первой колонке. Связь app→forward→server оформляйте через `Wants`/`After`, чтобы отказ транспорта не останавливал Telegram-интерфейс. Helpers восстанавливают mappings после возврата server; они проверяют его доступность перед вызовом ADB client, чтобы не запускать конкурирующий daemon. В испытанном Debian29.0.6 синтаксис foreground server — `adb -L tcp:5037 server nodaemon`; фактический bind127.0.0.1 проверен. Хосту не требуется Windows-ПК. Это транспорт, не установщик или boot supervisor LUNA на самой колонке.
+Если SSH сервера станции запрещает TCP forwarding, не меняйте его конфигурацию вслепую. Для уже авторизованных ADB-устройств можно использовать локальный `adb forward` к порту LUNA. `deploy/adb_luna_forward.py` поддерживает конкретный serial, локальный порт и `--remote-port` (по умолчанию 18100 для managed-runtime); не сбрасывает другие mappings и не пересоздаёт исправную mapping посреди записи. ADB server следует запускать отдельной службой на loopback, а не привязывать его lifetime к первой колонке. Связь app→forward→server оформляйте через `Wants`/`After`, чтобы отказ транспорта не останавливал Telegram-интерфейс. Helpers восстанавливают mappings после возврата server; они проверяют его доступность перед вызовом ADB client, чтобы не запускать конкурирующий daemon. В испытанном Debian29.0.6 синтаксис foreground server — `adb -L tcp:5037 server nodaemon`; фактический bind127.0.0.1 проверен. Хосту не требуется Windows-ПК. Это транспорт, не установщик или boot supervisor LUNA на самой колонке.
 
 ## Docker
 

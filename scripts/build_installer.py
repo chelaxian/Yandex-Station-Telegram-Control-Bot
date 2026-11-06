@@ -20,7 +20,7 @@ def main():
     import sys
     sys.path.insert(0, str(root / "src"))
     from stationbot import __version__
-    from stationbot.provision import PROFILES, RUNTIME_COMMIT
+    from stationbot.provision import PROFILES, RUNTIME_COMMIT, RUNTIME_RELEASE
     output = root / "dist" / f"stationbot-{__version__}-installer"
     output.mkdir(parents=True, exist_ok=True)
     wheel = root / "dist" / f"telegram_control_luna-{__version__}-py3-none-any.whl"
@@ -48,14 +48,15 @@ def main():
     shutil.copytree(args.notices, runtime / "third-party", dirs_exist_ok=True)
     crates = ", ".join(profile["binary"].removeprefix("luna-") for profile in PROFILES.values())
     (runtime / "SOURCE.txt").write_text(
-        f"LUNA source: https://github.com/chelaxian/luna/tree/{RUNTIME_COMMIT}\n"
+        f"LUNA source: https://github.com/nyakokitsu/luna/tree/{RUNTIME_COMMIT}\n"
+        f"LUNA official release: {RUNTIME_RELEASE}\n"
         "Build: aarch64-unknown-linux-musl\n"
         f"Station crates: {crates}\n"
         "Third-party notices: third-party/INDEX.json; crate versions: Cargo.lock\n",
         encoding="utf-8",
     )
     files = {p.relative_to(output).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(output.rglob("*")) if p.is_file() and p.name != "bundle.json"}
-    (output / "bundle.json").write_text(json.dumps({"version": __version__, "wheel": wheel.name, "runtime_commit": RUNTIME_COMMIT, "files": files}, indent=2), encoding="utf-8")
+    (output / "bundle.json").write_text(json.dumps({"version": __version__, "wheel": wheel.name, "runtime_commit": RUNTIME_COMMIT, "runtime_release": RUNTIME_RELEASE, "files": files}, indent=2), encoding="utf-8")
     with zipfile.ZipFile(Path(str(output) + ".zip"), "w", zipfile.ZIP_DEFLATED, strict_timestamps=False) as archive:
         for p in sorted(output.rglob("*")):
             if p.is_file():
