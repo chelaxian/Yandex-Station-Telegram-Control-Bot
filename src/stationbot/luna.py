@@ -221,13 +221,20 @@ class Luna:
         if device.model == "yandexplum":
             from .audio import apply_volume
             volume = await self.volume()
+            if volume["percent"] == 0:
+                raise Unavailable("Громкость станции 0% — воспроизведение отключено")
             # Until logical volume readings are verified on physical Plum, limit
             # gain even if the fallback mixer reports 100% incorrectly.
-            wav = await asyncio.to_thread(apply_volume, wav, min(volume["percent"], 20))
+            playback_volume = min(volume["percent"], 20)
+            wav = await asyncio.to_thread(apply_volume, wav, playback_volume)
         result = await self.json("POST", "audio/jobs", content=wav,
                                headers={"Content-Type": "audio/wav", "Idempotency-Key": key},
                                request_timeout=60)
-        return self.audio_job(result)
+        job = self.audio_job(result)
+        if device.model == "yandexplum":
+            job["station_volume_percent"] = volume["percent"]
+            job["playback_volume_percent"] = playback_volume
+        return job
 
     @staticmethod
     def audio_job(value: Any) -> dict:

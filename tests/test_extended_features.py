@@ -1,4 +1,6 @@
 import io
+import struct
+import wave
 import zipfile
 from dataclasses import replace
 from types import SimpleNamespace
@@ -8,7 +10,7 @@ import httpx
 import pytest
 
 from stationbot.audio import effect
-from stationbot.errors import Forbidden, TransportError
+from stationbot.errors import Forbidden, TransportError, Unavailable
 from stationbot.luna import Device, Luna
 
 JOB = {"id": "2e0c280b-6ae7-459a-a9a1-985d92463517", "state": "queued", "cleanup": "pending"}
@@ -29,6 +31,35 @@ async def test_audio_uses_bounded_job_contract_and_never_retries_post(config):
         assert requests[-1].url.path == "/api/audio/jobs"
     finally:
         await client.close()
+
+
+async def test_plum_playback_follows_station_volume_and_blocks_zero(config):
+    async def check(percent):
+        requests = []
+        def response(request):
+            requests.append(request)
+            if request.url.path.endswith("device"):
+                return httpx.Response(200, json={"model": "yandexplum", "architecture": "aarch64",
+                                               "features": ["audio.jobs.v1", "audio.volume.alsa"]})
+            if request.url.path.endswith("volume"):
+                return httpx.Response(200, json={"percent": percent})
+            return httpx.Response(202, json=JOB)
+        station = replace(config.stations[0], expected_model="yandexplum")
+        client = Luna(station, transport=httpx.MockTransport(response))
+        try:
+            result = await client.play(effect("alarm", 1), f"plum-{percent}")
+            return result, requests
+        finally:
+            await client.close()
+
+    result, requests = await check(40)
+    assert result["station_volume_percent"] == 40
+    assert result["playback_volume_percent"] == 20
+    with wave.open(io.BytesIO(requests[-1].content), "rb") as wav:
+        assert max(abs(sample) for sample in struct.unpack(f"<{wav.getnframes()}h", wav.readframes(wav.getnframes()))) <= 1000
+
+    with pytest.raises(Unavailable):
+        await check(0)
 
 
 @pytest.mark.parametrize("job", [{}, {**JOB, "id": "../../shell"}, {**JOB, "state": "done"}, {**JOB, "cleanup": False}])

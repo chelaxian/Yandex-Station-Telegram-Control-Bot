@@ -4,6 +4,7 @@ import time
 from collections import OrderedDict
 from typing import Any
 
+from . import __version__
 from .catalog import parity_text
 from .config import Config
 from .errors import BotError, InvalidInput, TransportError, Unavailable
@@ -79,7 +80,7 @@ class Service:
                     "ring_count": d.ring_count, "logo_count": d.logo_count}
         if action == "status":
             d = await client.device()
-            return {"station": client.config.label, "model": d.model, "online": True}
+            return {"station": client.config.label, "model": d.model, "online": True, "runtime_version": __version__}
         if action == "health":
             d = await client.device()
             return {"model": d.model, "sensors": await client.sensors()}

@@ -75,7 +75,8 @@ def result_card(action: str, value, station: str | None = None, timezone="UTC") 
         else:
             lines = ["⚠️ Станция не сообщила текущую громкость."]
     elif action == "status" and isinstance(value, dict):
-        lines = ["🟢 На связи" if value.get("online") else "🔴 Не отвечает", "Управление доступно через LUNA."]
+        lines = ["🟢 На связи" if value.get("online") else "🔴 Не отвечает",
+                 f"Управление доступно через LUNA · runtime <b>{safe(value.get('runtime_version', 'неизвестен'))}</b>"]
     elif action in {"health", "system", "fastfetch"} and isinstance(value, dict):
         for sensor in value.get("sensors", []):
             kind, number = sensor.get("kind"), sensor.get("value")
@@ -151,6 +152,9 @@ def result_card(action: str, value, station: str | None = None, timezone="UTC") 
             lines = [f"📄 <b>{safe(value.get('name', 'Файл'))}</b>", f"Размер: {size(value.get('bytes', value.get('size', 0)))}", f"🔐 SHA-256\n<code>{safe(value['sha256'])}</code>"]
         elif "state" in value:
             lines = [STATES.get(value["state"], "⏳ Результат уточняется")]
+            if type(value.get("station_volume_percent")) is int:
+                lines.append(f"🔉 Громкость станции: <b>{value['station_volume_percent']}%</b>")
+                lines.append(f"🎚 Уровень файла: <b>{value.get('playback_volume_percent', 0)}%</b>")
         elif action in {"clock", "clock_get"}:
             lines = ["🕒 Экран доступен" if value.get("available") else "У станции нет доступного экрана.", "Выберите пресет, яркость или введите своё время."]
         elif action == "capabilities":
