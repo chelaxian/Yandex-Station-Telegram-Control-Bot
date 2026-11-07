@@ -30,3 +30,8 @@
 В отдельных snapshot-VM Plum и Station 2 с отключённой внешней сетью проверен `Adb.install`: чтение root/архитектуры/model/версии, установка закреплённого бинарника, готовность, повторное чтение модели и контролируемый перезапуск LUNA. Для доступа к виртуальному ADB в тесте локально подменён serial на `127.0.0.1:15555`; поиск LAN-адреса этим опытом не проверялся. Бинарник с неверной SHA-256 был отвергнут, работающий runtime сохранился. При искусственно вызванном сбое проверки готовности восстановился прежний runtime с ожидаемым SHA-256.
 
 Виртуальная Mini 3 Pro сообщает `Yandex Pickle`, а профиль установщика ожидает подтверждённое на реальной станции `Yandex Pickle EVT`. Установщик отказался от записи; в отдельном лабораторном повторе с принудительным выбором профиля после этого отказа установка, перезапуск и откат прошли. Это не проверка автоматической идентификации Mini 3 Pro. Полный Windows/Linux one-click, реальный reboot колонки и установка на другие модели этими тестами не квалифицированы.
+
+## Telegram UI matrix (KUYASE, 2026-11-07)
+
+Real aiogram dispatcher + LUNA over virtual boards: /menu, LED panel and release, volume 25%, 5 s record (only where microphone.capture is advertised). LED and volume passed on yandexmini, yandexmicro, yandexmini2(+nc), bergamot, pickle, plum(+nc), station2, cucumber, orion, mango. Record passed (5.04 s) on yandexmini, pickle, plum, plumnc, station2. Emulation only; not hardware qualification.
+
