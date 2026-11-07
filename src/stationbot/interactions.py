@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import asyncio
 import colorsys
+import io
 import logging
 import time
 import uuid
+import wave
 from dataclasses import dataclass
 
 from aiogram.types import BufferedInputFile, InlineKeyboardButton, InlineKeyboardMarkup, Message
@@ -242,6 +244,11 @@ class Interactions:
                 if wav is None:
                     await asyncio.sleep(.5)
                     continue
+                with wave.open(io.BytesIO(wav), "rb") as recording:
+                    duration = recording.getnframes() / recording.getframerate()
+                if duration < 4:
+                    await notify(message, station, "Интерком остановлен: станция вернула слишком короткий фрагмент микрофона. Проверьте запись и повторите вызов.")
+                    return
                 await message.answer_audio(BufferedInputFile(wav, filename="intercom.wav"), caption="Интерком · " + client.config.label)
                 del wav
                 await asyncio.sleep(.5)

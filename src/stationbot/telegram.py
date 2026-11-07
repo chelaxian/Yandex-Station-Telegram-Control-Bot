@@ -170,7 +170,8 @@ def make_dispatcher(service: Service) -> Dispatcher:
         else:
             await message.answer(text, parse_mode="HTML", reply_markup=buttons)
 
-    async def send_result(message: Message, value: Any, action: str, station: str, user: int) -> None:
+    async def send_result(message: Message, value: Any, action: str, station: str, user: int,
+                          requested_seconds: int | None = None) -> None:
         label = service.clients[station].config.label
         page = {"play": "sounds", "sound_add": "sounds", "sound_delete": "sounds", "tts": "tts", "siren": "siren", "ban": "siren", "theme_test": "theme", "upload_script": "scripts", "restore": "backup", "stop": "tts", "cancel_timer": "timers"}.get(action, action)
         buttons = await ui.keyboard(user, station, page, value)
@@ -180,6 +181,8 @@ def make_dispatcher(service: Service) -> Dispatcher:
                 with wave.open(io.BytesIO(value), "rb") as recording:
                     duration = recording.getnframes() / recording.getframerate()
                 lines.insert(0, f"⏱ Длительность записи: {duration:.2f} сек.")
+                if requested_seconds is not None and duration < requested_seconds * 0.8:
+                    lines.insert(1, f"⚠️ Запись короче запрошенных {requested_seconds} сек. Проверьте микрофон и повторите попытку.")
             caption = card({"photo": "📸 Снимок готов", "video": "🎥 Видео готово", "backup": "📦 Резервная копия готова"}.get(action, "🎙 Запись готова"), lines, label)
             if action == "photo":
                 await message.answer_photo(BufferedInputFile(value, filename="photo.jpg"), caption=caption, parse_mode="HTML", reply_markup=buttons)
@@ -374,7 +377,8 @@ def make_dispatcher(service: Service) -> Dispatcher:
             value = await service.run(user, station, action, args, request)
             if command == "theme":
                 await service.interactions.configure_theme(user, station)
-            await send_result(message, value, command, station, user)
+            await send_result(message, value, command, station, user,
+                              requested_seconds=int(args[0]) if command == "record" else None)
 
     @router.callback_query()
     async def on_callback(query: CallbackQuery) -> None:

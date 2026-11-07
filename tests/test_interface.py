@@ -5,6 +5,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 
 import pytest
+from aiogram.methods import SendDocument
 from aiogram.types import Chat, Message, Update, User
 from test_telegram import bot as bot
 from test_telegram import update
@@ -39,6 +40,15 @@ async def test_volume_button_sets_value_once_as_clicking_user(service, bot):
     await dp.feed_update(bot, click(data, mid=12))
     assert "устарела" in bot.session.sent[-1].text
     assert len([r for r in service.fakes[0].requests if r.method == "POST"]) == 1
+
+
+async def test_record_button_warns_when_returned_wav_is_short(service, bot):
+    dp = make_dispatcher(service)
+    await dp.feed_update(bot, click("guide:mini:record"))
+    await dp.feed_update(bot, click(button(bot.session.sent[-1], "🎙 5 сек"), mid=11))
+    document = next(item for item in bot.session.sent if isinstance(item, SendDocument))
+    assert "Длительность записи: 1.00 сек." in document.caption
+    assert "Запись короче запрошенных 5 сек." in document.caption
 
 
 async def test_mutation_button_is_bound_to_station_and_user(service, bot):

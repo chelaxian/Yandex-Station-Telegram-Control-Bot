@@ -138,13 +138,31 @@ async def test_intercom_does_not_capture_its_own_playback(service):
     client.audio_jobs = AsyncMock(side_effect=[[{**JOB, "state": "playing"}], []])
     async def record(seconds):
         session.end_requested = True
-        return wav_bytes()
+        return wav_bytes(5)
     client.record = AsyncMock(side_effect=record)
     message = SimpleNamespace(answer=AsyncMock(), answer_audio=AsyncMock())
     await service.interactions._intercom(message, "mini", session)
     assert client.audio_jobs.await_count == 2
     client.record.assert_awaited_once_with(5)
     message.answer_audio.assert_awaited_once()
+
+
+async def test_intercom_stops_when_microphone_returns_short_fragment(service):
+    from conftest import wav_bytes
+
+    from stationbot.interactions import Session
+    client = service.clients["mini"]
+    session = Session(1, 1, active=True)
+    client.stop_audio = AsyncMock(return_value=[])
+    client.audio_jobs = AsyncMock(return_value=[])
+    client.record = AsyncMock(return_value=wav_bytes(1))
+    message = SimpleNamespace(answer=AsyncMock(), answer_audio=AsyncMock())
+    service.interactions.calls["mini"] = session
+    await service.interactions._intercom(message, "mini", session)
+    message.answer_audio.assert_not_awaited()
+    assert any("слишком короткий фрагмент" in call.args[0] for call in message.answer.await_args_list)
+    assert "mini" not in service.interactions.calls
+    assert client.stop_audio.await_count == 2
 
 
 async def test_voice_hangup_uses_verified_transcript_event(service):

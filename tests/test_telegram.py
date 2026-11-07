@@ -64,6 +64,15 @@ async def test_record_caption_reports_actual_wav_duration(service, bot):
     await dp.feed_update(bot, update("/record 10"))
     document = next(item for item in bot.session.sent if isinstance(item, SendDocument))
     assert "Длительность записи: 1.00 сек." in document.caption
+    assert "Запись короче запрошенных 10 сек." in document.caption
+
+
+async def test_record_caption_does_not_warn_for_complete_recording(service, bot):
+    dp = make_dispatcher(service)
+    await dp.feed_update(bot, update("/record 1"))
+    document = next(item for item in bot.session.sent if isinstance(item, SendDocument))
+    assert "Длительность записи: 1.00 сек." in document.caption
+    assert "Запись короче" not in document.caption
 
 
 async def test_relative_alarm_is_durable_and_cannot_be_created_by_viewer(service, bot):
