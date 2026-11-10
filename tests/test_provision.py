@@ -26,6 +26,10 @@ def test_model_qualification_never_aliases_midi_to_station2():
     assert identify('0', 'aarch64', 'Yandex Pickle EVT\0', '0.369.1.50.4795647264.20261021.107') == 'yandexmini_3_pro'
     assert identify('0', 'aarch64', 'Yandex Station Midi\0', '0.369.1.50.4794649087.20261021.295') == 'yandexstation_2'
     assert identify('0', 'aarch64', 'Yandex Plum EVT2\0', '0.369.1.50.4795647582.20261021.133') == 'yandexplum'
+    # Max reports an Android platform name also used by Station 2; its board
+    # identity must not authorize the Station 2 installer profile.
+    with pytest.raises(ProvisionError):
+        identify('0', 'aarch64', 'Amlogic', 'PPR1.180610.011.5000000921')
     for values in [
         ('0','aarch64','Yandex Station Midi','other-firmware'),
         ('1000','aarch64','Yandex Pickle EVT','.50.4795647264.'),
