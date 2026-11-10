@@ -24,6 +24,8 @@ def test_audio_probe_is_read_only_after_identity_check():
     assert "StrictHostKeyChecking=yes" in args and "BatchMode=yes" in args
     command = args[-1]
     assert "/proc/asound/cards" in command and "/dev/snd/pcmC*D*" in command
+    assert "pidof" in command and "maind aliced yio_audio" in command
+    assert "/system/vendor/quasar/quasar.cfg" in command
     assert all(
         word not in command
         for word in ("tinyplay", "tinymix", "aplay", "arecord", "chmod", "reboot")

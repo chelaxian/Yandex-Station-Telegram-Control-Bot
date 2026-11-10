@@ -21,6 +21,15 @@ _COMMAND = (
     "for f in /dev/snd/pcmC*D*; do "
     '[ -e "$f" ] || continue; printf \'%s\\n\' "${f##*/}"; '
     "done; "
+    "printf -- '--- quasar audio services\\n'; "
+    "for n in maind aliced yio_audio; do "
+    'if pidof "$n" >/dev/null 2>&1; then printf \'%s running\\n\' "$n"; '
+    "else printf '%s stopped\\n' \"$n\"; fi; "
+    "done; "
+    "printf -- '--- quasar audio files\\n'; "
+    "for f in /system/vendor/quasar/maind /system/vendor/quasar/quasar.cfg; do "
+    '[ -f "$f" ] && printf \'%s present\\n\' "$f" || printf \'%s missing\\n\' "$f"; '
+    "done; "
     "for f in /proc/asound/card*/pcm*/sub0/status /proc/asound/card*/pcm*/sub0/hw_params; do "
     '[ -r "$f" ] || continue; printf -- \'--- %s\\n\' "$f"; cat "$f"; '
     "done"
