@@ -23,6 +23,24 @@ def test_unknown_identity_fails_closed(output):
             probe_max_ssh(MaxSshTarget("192.168.1.5", "root"))
 
 
+def test_ssh_failure_does_not_disclose_remote_output():
+    result = SimpleNamespace(returncode=255, stdout="", stderr="sensitive host details")
+    with patch("stationbot.max_ssh_probe.subprocess.run", return_value=result):
+        with pytest.raises(ProvisionError) as error:
+            probe_max_ssh(MaxSshTarget("192.168.1.5", "root"))
+    assert "sensitive" not in str(error.value)
+
+
+def test_max_probe_requires_screen_and_ring_signature():
+    lines = ["MAX_PROBE_V1", "0", "aarch64", "YNDX LED screen", "25,16", "24", "75", "YNDX LED ring", "24,1", "24", "72"]
+    for index in range(1, len(lines)):
+        changed = lines.copy()
+        changed[index] = "wrong"
+        with patch("stationbot.max_ssh_probe.subprocess.run", return_value=SimpleNamespace(returncode=0, stdout="\n".join(changed))):
+            with pytest.raises(ProvisionError):
+                probe_max_ssh(MaxSshTarget("192.168.1.5", "root"))
+
+
 @pytest.mark.parametrize("host,user,port", [("-oProxyCommand=x", "root", 22), ("127.0.0.1", "root;id", 22), ("127.0.0.1", "root", 0)])
 def test_rejects_unsafe_target(host, user, port):
     with pytest.raises(ProvisionError):
