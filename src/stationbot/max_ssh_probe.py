@@ -4,6 +4,7 @@ This is not an installer and does not establish root or alter ADB.
 """
 from __future__ import annotations
 
+import argparse
 import ipaddress
 import re
 import subprocess
@@ -49,3 +50,22 @@ def probe_max_ssh(target: MaxSshTarget, ssh: str = "ssh") -> bool:
     if lines.count("MAX_PROBE_V1") != 1 or lines[lines.index("MAX_PROBE_V1") + 1:] != _EXPECTED:
         raise ProvisionError("SSH не предоставил root или аппаратные признаки не совпали; установка не выполняется")
     return True
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Проверить существующий root SSH Станции Макс без записи")
+    parser.add_argument("--host", required=True, help="IP-адрес колонки")
+    parser.add_argument("--user", required=True, help="Имя пользователя для существующего SSH")
+    parser.add_argument("--port", type=int, default=22)
+    args = parser.parse_args()
+    try:
+        probe_max_ssh(MaxSshTarget(args.host, args.user, args.port))
+    except ProvisionError as error:
+        print(str(error))
+        return 1
+    print("Root SSH и признаки Станции Макс подтверждены; изменений не внесено.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
