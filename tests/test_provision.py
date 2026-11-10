@@ -64,6 +64,15 @@ def test_contract_check_reports_exact_missing_capability():
     assert missing_features(good, 'yandexstation_2', True) == {'model'}
 
 
+def test_max_ring_contract_does_not_claim_unavailable_audio_or_owner_tools():
+    device = {'model': 'yandexstation_max', 'features': ['led.ring.rgb', 'led.ring.24'], 'led': {'ring_count': 24}}
+    assert missing_features(device, 'yandexstation_max', False) == set()
+    assert missing_features(device, 'yandexstation_max', True) == {'owner.tools.v1', 'owner.speech.phase.v1'}
+    device['led']['ring_count'] = 89
+    assert missing_features(device, 'yandexstation_max', False) == {'led.ring_count=24'}
+    assert missing_features(device, 'yandexstation_2', False) == {'model'}
+
+
 def test_unqualified_probe_and_bad_binary_perform_no_remote_write(tmp_path):
     adb = Adb('adb', '192.168.1.2')
     adb.connect = Mock()
