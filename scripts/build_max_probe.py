@@ -3,10 +3,8 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import shutil
 import sys
-import tempfile
-import zipapp
+import zipfile
 from pathlib import Path
 
 PROBES = {
@@ -25,18 +23,18 @@ def build(probe: str, output: Path) -> str:
     if probe not in PROBES:
         raise ValueError("Unknown probe")
     source = Path(__file__).resolve().parents[1] / "src" / "stationbot"
-    with tempfile.TemporaryDirectory(prefix="stationbot-probe-") as temporary:
-        package = Path(temporary) / "stationbot"
-        package.mkdir()
-        for name in PROBES[probe]["files"]:
-            shutil.copy2(source / name, package / name)
-        zipapp.create_archive(
-            Path(temporary),
-            output,
-            interpreter="/usr/bin/env python3",
-            main=PROBES[probe]["entry"],
-            compressed=True,
-        )
+    module, function = PROBES[probe]["entry"].split(":")
+    main = f"from {module} import {function}\nraise SystemExit({function}())\n"
+    with output.open("wb") as stream:
+        stream.write(b"#!/usr/bin/env python3\n")
+        with zipfile.ZipFile(stream, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            files = [(f"stationbot/{name}", (source / name).read_bytes()) for name in PROBES[probe]["files"]]
+            files.append(("__main__.py", main.encode("utf-8")))
+            for name, contents in sorted(files):
+                info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+                info.compress_type = zipfile.ZIP_DEFLATED
+                info.external_attr = 0o644 << 16
+                archive.writestr(info, contents)
     return hashlib.sha256(output.read_bytes()).hexdigest()
 
 

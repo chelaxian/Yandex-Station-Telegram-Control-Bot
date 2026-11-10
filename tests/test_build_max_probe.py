@@ -1,21 +1,22 @@
-from pathlib import Path
-from unittest.mock import Mock, patch
+import subprocess
+import sys
+import zipfile
 
 import pytest
 
 from scripts.build_max_probe import PROBES, build
 
 
-def test_audio_probe_archive_contains_only_intended_modules(tmp_path):
-    output = tmp_path / "max-audio-probe.pyz"
-    with patch("scripts.build_max_probe.shutil.copy2") as copy, patch(
-        "scripts.build_max_probe.hashlib.sha256",
-        return_value=Mock(hexdigest=Mock(return_value="digest")),
-    ) as digest_factory:
-        assert build("audio", output) == "digest"
-    copied = {Path(call.args[0]).name for call in copy.call_args_list}
-    assert copied == set(PROBES["audio"]["files"])
-    digest_factory.assert_called_once_with(output.read_bytes())
+def test_audio_archive_is_reproducible_and_runs(tmp_path):
+    first, second = tmp_path / "first.pyz", tmp_path / "second.pyz"
+    assert build("audio", first) == build("audio", second)
+    assert first.read_bytes() == second.read_bytes()
+    with zipfile.ZipFile(first) as archive:
+        assert set(archive.namelist()) == {"__main__.py"} | {
+            f"stationbot/{name}" for name in PROBES["audio"]["files"]
+        }
+    result = subprocess.run([sys.executable, str(first), "--help"], capture_output=True, timeout=10)
+    assert result.returncode == 0
 
 
 def test_unknown_probe_is_rejected(tmp_path):
