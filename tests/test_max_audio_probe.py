@@ -23,6 +23,8 @@ def test_audio_probe_is_read_only_after_identity_check():
     args = run.call_args.args[0]
     assert "StrictHostKeyChecking=yes" in args and "BatchMode=yes" in args
     command = args[-1]
+    # Android toybox printf treats -- as the format string, not an option terminator.
+    assert "printf --" not in command
     assert "/proc/asound/cards" in command and "/dev/snd/pcmC*D*" in command
     assert "pidof" in command and "maind aliced yio_audio" in command
     assert "/system/vendor/quasar/quasar.cfg" in command

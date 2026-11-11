@@ -16,23 +16,23 @@ _MARKER = "MAX_AUDIO_PROBE_V1"
 _COMMAND = (
     f"printf '{_MARKER}\\n'; "
     "for f in /proc/asound/cards /proc/asound/devices /proc/asound/pcm; do "
-    "printf -- '--- %s\\n' \"$f\"; cat \"$f\" 2>/dev/null || printf 'unavailable\\n'; "
+    "printf '%s\\n' \"--- $f\"; cat \"$f\" 2>/dev/null || printf 'unavailable\\n'; "
     "done; "
-    "printf -- '--- pcm devices\\n'; "
+    "printf '%s\\n' '--- pcm devices'; "
     "for f in /dev/snd/pcmC*D*; do "
     '[ -e "$f" ] || continue; printf \'%s\\n\' "${f##*/}"; '
     "done; "
-    "printf -- '--- quasar audio services\\n'; "
+    "printf '%s\\n' '--- quasar audio services'; "
     "for n in maind aliced yio_audio; do "
     'if pidof "$n" >/dev/null 2>&1; then printf \'%s running\\n\' "$n"; '
     "else printf '%s stopped\\n' \"$n\"; fi; "
     "done; "
-    "printf -- '--- quasar audio files\\n'; "
+    "printf '%s\\n' '--- quasar audio files'; "
     "for f in /system/vendor/quasar/maind /system/vendor/quasar/quasar.cfg; do "
     '[ -f "$f" ] && printf \'%s present\\n\' "$f" || printf \'%s missing\\n\' "$f"; '
     "done; "
     "for f in /proc/asound/card*/pcm*/sub0/status /proc/asound/card*/pcm*/sub0/hw_params; do "
-    '[ -r "$f" ] || continue; printf -- \'--- %s\\n\' "$f"; cat "$f"; '
+    '[ -r "$f" ] || continue; printf \'%s\\n\' "--- $f"; cat "$f"; '
     "done"
 )
 
