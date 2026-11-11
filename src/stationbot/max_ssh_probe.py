@@ -8,6 +8,7 @@ import argparse
 import ipaddress
 import re
 import subprocess
+import sys
 from dataclasses import dataclass
 
 from .provision import ProvisionError
@@ -27,6 +28,7 @@ class MaxSshTarget:
     host: str
     user: str
     port: int = 22
+    ssh_config: str | None = None
 
     def __post_init__(self):
         try:
@@ -39,7 +41,7 @@ class MaxSshTarget:
 
 def probe_max_ssh(target: MaxSshTarget, ssh: str = "ssh") -> bool:
     """Verify an existing root login and reported geometry without remote writes."""
-    args = [ssh, "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=8", "-p", str(target.port), "--", f"{target.user}@{target.host}", _COMMAND]
+    args = [ssh, *( ["-F", target.ssh_config] if target.ssh_config else []), "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=8", "-p", str(target.port), "--", f"{target.user}@{target.host}", _COMMAND]
     try:
         result = subprocess.run(args, capture_output=True, text=True, timeout=15, check=False)
     except (OSError, subprocess.TimeoutExpired) as exc:
@@ -53,13 +55,17 @@ def probe_max_ssh(target: MaxSshTarget, ssh: str = "ssh") -> bool:
 
 
 def main() -> int:
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="backslashreplace")
     parser = argparse.ArgumentParser(description="Проверить существующий root SSH Станции Макс без записи")
     parser.add_argument("--host", required=True, help="IP-адрес колонки")
     parser.add_argument("--user", required=True, help="Имя пользователя для существующего SSH")
     parser.add_argument("--port", type=int, default=22)
+    parser.add_argument("--ssh-config", help="Путь к существующему SSH-конфигу")
     args = parser.parse_args()
     try:
-        probe_max_ssh(MaxSshTarget(args.host, args.user, args.port))
+        probe_max_ssh(MaxSshTarget(args.host, args.user, args.port, args.ssh_config))
     except ProvisionError as error:
         print(str(error))
         return 1

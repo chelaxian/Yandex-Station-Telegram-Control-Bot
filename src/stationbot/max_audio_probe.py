@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import subprocess
+import sys
 
 from .max_ssh_probe import MaxSshTarget, probe_max_ssh
 from .provision import ProvisionError
@@ -41,6 +42,7 @@ def probe_max_audio(target: MaxSshTarget, ssh: str = "ssh") -> str:
     probe_max_ssh(target, ssh)
     args = [
         ssh,
+        *(["-F", target.ssh_config] if target.ssh_config else []),
         "-o",
         "BatchMode=yes",
         "-o",
@@ -67,13 +69,17 @@ def probe_max_audio(target: MaxSshTarget, ssh: str = "ssh") -> str:
 
 
 def main() -> int:
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="backslashreplace")
     parser = argparse.ArgumentParser(description="Собрать read-only аудио-данные Станции Макс")
     parser.add_argument("--host", required=True, help="IP-адрес колонки")
     parser.add_argument("--user", required=True, help="Имя пользователя для существующего SSH")
     parser.add_argument("--port", type=int, default=22)
+    parser.add_argument("--ssh-config", help="Путь к существующему SSH-конфигу")
     args = parser.parse_args()
     try:
-        print(probe_max_audio(MaxSshTarget(args.host, args.user, args.port)))
+        print(probe_max_audio(MaxSshTarget(args.host, args.user, args.port, args.ssh_config)))
     except ProvisionError as error:
         print(str(error))
         return 1

@@ -31,6 +31,15 @@ def test_ssh_failure_does_not_disclose_remote_output():
     assert "sensitive" not in str(error.value)
 
 
+def test_explicit_ssh_config_keeps_strict_host_verification():
+    lines = ["MAX_PROBE_V1", "0", "aarch64", "YNDX LED screen", "25,16", "24", "75", "YNDX LED ring", "24,1", "24", "72"]
+    with patch("stationbot.max_ssh_probe.subprocess.run", return_value=SimpleNamespace(returncode=0, stdout="\n".join(lines))) as run:
+        probe_max_ssh(MaxSshTarget("192.168.1.5", "root", 2222, "C:/keys/config"))
+    args = run.call_args.args[0]
+    assert args[args.index("-F") + 1] == "C:/keys/config"
+    assert "StrictHostKeyChecking=yes" in args
+
+
 def test_max_probe_requires_screen_and_ring_signature():
     lines = ["MAX_PROBE_V1", "0", "aarch64", "YNDX LED screen", "25,16", "24", "75", "YNDX LED ring", "24,1", "24", "72"]
     for index in range(1, len(lines)):
