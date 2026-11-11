@@ -31,6 +31,10 @@ _COMMAND = (
     "for f in /system/vendor/quasar/maind /system/vendor/quasar/quasar.cfg; do "
     '[ -f "$f" ] && printf \'%s present\\n\' "$f" || printf \'%s missing\\n\' "$f"; '
     "done; "
+    "printf '%s\\n' '--- android audio tools'; "
+    "for n in app_process cmd media service dumpsys; do "
+    'if command -v "$n" >/dev/null 2>&1; then printf \'%s present\\n\' "$n"; '
+    "else printf '%s missing\\n' \"$n\"; fi; done; "
     "for f in /proc/asound/card*/pcm*/sub0/status /proc/asound/card*/pcm*/sub0/hw_params; do "
     '[ -r "$f" ] || continue; printf \'%s\\n\' "--- $f"; cat "$f"; '
     "done"
