@@ -16,6 +16,10 @@ PROBES = {
         "entry": "stationbot.max_audio_probe:main",
         "files": ("__init__.py", "network.py", "provision.py", "max_ssh_probe.py", "max_audio_probe.py"),
     },
+    "tone": {
+        "entry": "stationbot.max_tone_probe:main",
+        "files": ("__init__.py", "network.py", "provision.py", "max_ssh_probe.py", "max_tone_probe.py"),
+    },
 }
 
 
@@ -29,6 +33,8 @@ def build(probe: str, output: Path) -> str:
         stream.write(b"#!/usr/bin/env python3\n")
         with zipfile.ZipFile(stream, "w", compression=zipfile.ZIP_DEFLATED) as archive:
             files = [(f"stationbot/{name}", (source / name).read_bytes()) for name in PROBES[probe]["files"]]
+            if probe == "tone":
+                files.append(("stationbot/max-tone.jar", (source.parents[1] / "experiments/max-audio/max-tone.jar").read_bytes()))
             files.append(("__main__.py", main.encode("utf-8")))
             for name, contents in sorted(files):
                 info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
