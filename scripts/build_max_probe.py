@@ -24,6 +24,10 @@ PROBES = {
         "entry": "stationbot.max_android_probe:main",
         "files": ("__init__.py", "network.py", "provision.py", "max_ssh_probe.py", "max_android_probe.py"),
     },
+    "volume": {
+        "entry": "stationbot.max_volume_probe:main",
+        "files": ("__init__.py", "network.py", "provision.py", "max_ssh_probe.py", "max_volume_probe.py"),
+    },
 }
 
 
