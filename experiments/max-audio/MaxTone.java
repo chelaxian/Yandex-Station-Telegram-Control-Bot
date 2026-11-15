@@ -4,12 +4,18 @@ public final class MaxTone {
         Object track = null;
         boolean ok = false;
         try {
+            int amplitude = args.length > 0 ? Integer.parseInt(args[0]) : 4000;
+            float gain = args.length > 1 ? Float.parseFloat(args[1]) : 0.5f;
+            int millis = args.length > 2 ? Integer.parseInt(args[2]) : 1500;
+            if (amplitude < 100 || amplitude > 14000 || gain < 0.05f || gain > 1.0f || millis < 200 || millis > 3000) {
+                throw new IllegalArgumentException("parameters out of range");
+            }
             Class<?> cls = Class.forName("android.media.AudioTrack");
-            int rate = 48000, frames = 24000;
+            int rate = 48000, frames = rate * millis / 1000;
             short[] samples = new short[frames];
             for (int i = 0; i < frames; i++) {
-                double fade = Math.min(1.0, Math.min(i / 1200.0, (frames - 1 - i) / 1200.0));
-                samples[i] = (short)(500 * fade * Math.sin(2 * Math.PI * 660 * i / rate));
+                double fade = Math.min(1.0, Math.min(i / 2400.0, (frames - 1 - i) / 2400.0));
+                samples[i] = (short)(amplitude * fade * Math.sin(2 * Math.PI * 660 * i / rate));
             }
             // STREAM_MUSIC, CHANNEL_OUT_MONO, ENCODING_PCM_16BIT, MODE_STATIC.
             track = cls.getConstructor(int.class, int.class, int.class, int.class, int.class, int.class)
@@ -19,12 +25,13 @@ public final class MaxTone {
             int wrote = (Integer) cls.getMethod("write", short[].class, int.class, int.class)
                 .invoke(track, samples, 0, frames);
             if (wrote != frames) throw new IllegalStateException("short write=" + wrote);
-            int gain = (Integer) cls.getMethod("setVolume", float.class).invoke(track, 0.25f);
-            if (gain != 0) throw new IllegalStateException("gain=" + gain);
+            int status = (Integer) cls.getMethod("setVolume", float.class).invoke(track, gain);
+            if (status != 0) throw new IllegalStateException("gain status=" + status);
             cls.getMethod("play").invoke(track);
-            Thread.sleep(1000);
+            Thread.sleep(millis + 200);
             int played = (Integer) cls.getMethod("getPlaybackHeadPosition").invoke(track);
-            System.out.println("MAX_TONE_RESULT written=" + wrote + " played=" + played);
+            System.out.println("MAX_TONE_RESULT written=" + wrote + " played=" + played
+                + " amplitude=" + amplitude + " gain=" + gain + " ms=" + millis);
             if (played <= 0) throw new IllegalStateException("no progress");
             ok = true;
         } catch (Throwable error) {
