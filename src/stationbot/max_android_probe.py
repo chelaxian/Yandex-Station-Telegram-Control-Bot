@@ -13,7 +13,7 @@ from .provision import ProvisionError
 _MARKER = "MAX_ANDROID_PROBE_V1"
 _INVENTORY = r"""
 printf 'MAX_ANDROID_PROBE_V1\n'
-h() { printf '%s\n' "--- $1"; }
+h() { printf '%s\n' "--- $*"; }
 h build
 for k in ro.build.version.release ro.build.version.sdk ro.product.manufacturer ro.product.model ro.product.device ro.build.type ro.build.tags; do
   printf '%s=%s\n' "$k" "$(getprop $k)"
@@ -46,7 +46,7 @@ if [ -r "/proc/$p/environ" ]; then tr '\000' '\n' < "/proc/$p/environ" | cut -d=
 """
 _BINDER_TEST = r"""
 d=$(mktemp -d /data/local/tmp/max-binder.XXXXXXXX) || exit 1
-trap 'rm -f "$d/binder.jar" "$d/env"; rmdir "$d"' EXIT
+trap 'rm -rf "$d"' EXIT
 printf '%s' '@PAYLOAD@' | base64 -d > "$d/binder.jar" || exit 1
 tr '\000' '\n' < "/proc/$p/environ" > "$d/env"
 while IFS= read -r l; do

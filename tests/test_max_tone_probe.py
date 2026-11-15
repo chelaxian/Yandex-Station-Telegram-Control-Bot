@@ -20,7 +20,8 @@ def test_tone_verifies_identity_and_uses_private_temporary_payload():
     identity.assert_called_once_with(target, "ssh")
     args = run.call_args.args[0]
     assert "StrictHostKeyChecking=yes" in args and "separate-config" in args
-    assert "mktemp -d" in args[-1] and "trap " in args[-1] and "app_process" in args[-1]
+    assert "mktemp -d" in args[-1] and "trap 'rm -rf" in args[-1] and "app_process" in args[-1]
+    assert "/proc/$p/environ" in args[-1] and "ANDROID_ROOT" not in args[-1]  # values stay on the device
     assert "/dev/snd" not in args[-1]
 
 

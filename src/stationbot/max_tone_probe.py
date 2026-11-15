@@ -15,12 +15,19 @@ def run_tone(target: MaxSshTarget, ssh: str = "ssh") -> str:
     probe_max_ssh(target, ssh)
     payload = importlib.resources.files("stationbot").joinpath("max-tone.jar").read_bytes()
     encoded = base64.b64encode(payload).decode("ascii")
-    # A fresh private directory avoids overwriting existing files. EXIT cleanup also
-    # runs on normal app_process failure; abrupt power loss may leave the directory.
+    # A fresh private directory avoids overwriting existing files. ART creates an oat/
+    # cache inside it, so cleanup is recursive; abrupt power loss may leave the directory.
+    # The Android environment is copied from adbd because root SSH sessions lack it.
     command = (
         "umask 077; d=$(mktemp -d /data/local/tmp/max-tone.XXXXXXXX) || exit 1; "
-        "trap 'rm -f \"$d/tone.jar\"; rmdir \"$d\"' EXIT; "
+        "trap 'rm -rf \"$d\"' EXIT; "
         f"printf '%s' '{encoded}' | base64 -d > \"$d/tone.jar\" || exit 1; "
+        "p=$(pidof adbd | cut -d' ' -f1); [ -r \"/proc/$p/environ\" ] || exit 1; "
+        "tr '\\000' '\\n' < \"/proc/$p/environ\" > \"$d/env\" || exit 1; "
+        "while IFS= read -r l; do case \"$l\" in "
+        "ANDROID_*=*|BOOTCLASSPATH=*|SYSTEMSERVERCLASSPATH=*|EXTERNAL_STORAGE=*|ASEC_MOUNTPOINT=*|"
+        "LOOP_MOUNTPOINT=*|DOWNLOAD_CACHE=*|STANDALONE_SYSTEMSERVER_JARS=*|LD_LIBRARY_PATH=*) "
+        "export \"$l\";; esac; done < \"$d/env\"; "
         "CLASSPATH=\"$d/tone.jar\" app_process /system/bin MaxTone"
     )
     args = [ssh, *(["-F", target.ssh_config] if target.ssh_config else []),
