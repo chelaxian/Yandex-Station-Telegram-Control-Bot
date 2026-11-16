@@ -36,6 +36,7 @@ async def doctor(config: Config) -> int:
 async def serve(config: Config) -> None:
     from aiogram import Bot
     from aiogram.client.session.aiohttp import AiohttpSession
+    from aiogram.exceptions import TelegramBadRequest
     from aiogram.types import BotCommand, BotCommandScopeChat, MenuButtonCommands
 
     from .service import Service
@@ -64,8 +65,11 @@ async def serve(config: Config) -> None:
                 ("guard", "Охрана камеры"), ("ask", "Локальный помощник"), ("dialogs", "Диалоги помощника"),
                 ("network", "Проверить соединение"), ("system", "Диагностика системы"), ("cleanup", "Очистить временные файлы")]]
             await bot.set_my_commands(commands)
-            await bot.set_my_commands(commands, scope=BotCommandScopeChat(chat_id=config.owner_id))
-            await bot.set_chat_menu_button(chat_id=config.owner_id, menu_button=MenuButtonCommands())
+            try:
+                await bot.set_my_commands(commands, scope=BotCommandScopeChat(chat_id=config.owner_id))
+                await bot.set_chat_menu_button(chat_id=config.owner_id, menu_button=MenuButtonCommands())
+            except TelegramBadRequest:
+                logging.getLogger(__name__).warning("Не удалось настроить меню владельца: отправьте боту /start и перезапустите его")
             dispatcher = make_dispatcher(service)
             await service.interactions.restore_themes()
             timer_task = asyncio.create_task(timer_worker(service, bot), name="durable-timers")

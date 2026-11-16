@@ -163,6 +163,12 @@ class Interface:
         return InlineKeyboardMarkup(inline_keyboard=rows)
 
     async def panel(self, user, station, page, request):
+        if self.service.clients[station].config.expected_model == "yandexstation_max" and page in {
+            "call", "record", "led", "clock", "screen", "health", "system", "media",
+            "media_get", "plugins", "backup", "terminal", "scripts", "firmware", "theme",
+        }:
+            from .errors import Unavailable
+            raise Unavailable("Этот раздел пока не поддерживается на Станции Макс.")
         data_pages = {"volume": "volume_get", "soundboard": "sounds", "clock": "clock_get"}
         action = data_pages.get(page, page)
         if action in {"status", "volume_get", "health", "system", "network", "plugins", "media_get", "sounds", "scripts", "firmware", "clock_get", "microphones", "audio_jobs", "capabilities"}:

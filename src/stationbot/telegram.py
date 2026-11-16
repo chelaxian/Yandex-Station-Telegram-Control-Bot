@@ -78,9 +78,13 @@ async def main_menu(service: Service, user: int) -> tuple[str, InlineKeyboardMar
     client = service.clients[station]
     label = client.config.label
     rows = [[("🔄 Статус", f"act:{station}:status"), ("🔀 Станции", "stations")]]
+    is_max = client.config.expected_model == "yandexstation_max"
     try:
         device = await client.device()
-        text = card("🏠 Управление станцией", ["🟢 На связи", f"📞 Интерком: {'включён' if station in service.interactions.calls else 'выкл'}", f"🛡 Охрана: {'включена' if station in service.interactions.guards else 'выкл'}", "", "Выберите раздел ниже 👇"], label)
+        status_lines = ["🟢 На связи"]
+        if not is_max:
+            status_lines += [f"📞 Интерком: {'включён' if station in service.interactions.calls else 'выкл'}", f"🛡 Охрана: {'включена' if station in service.interactions.guards else 'выкл'}"]
+        text = card("🏠 Управление станцией", status_lines + ["", "Выберите раздел ниже 👇"], label)
         if device.features & {"audio.volume.alsa", "audio.volume.android"}:
             rows.append([("🔉 Громкость", f"act:{station}:volume_get")])
         if (("led.ring.rgb" in device.features and device.ring_count)
@@ -93,20 +97,28 @@ async def main_menu(service: Service, user: int) -> tuple[str, InlineKeyboardMar
                 rows.append([("🕒 Часы", f"guide:{station}:clock")])
         except BotError:
             pass
-        rows.append([("🩺 Диагностика", f"act:{station}:health")])
+        if not is_max:
+            rows.append([("🩺 Диагностика", f"act:{station}:health")])
         if "microphone.capture" in device.features and await service.store.role(user) != "viewer":
             rows.append([("🎙 Запись комнаты", f"guide:{station}:record")])
-        rows.append([("📦 Пакеты", f"act:{station}:plugins"), ("🎵 Плеер", f"act:{station}:media_get")])
+        if not is_max:
+            rows.append([("📦 Пакеты", f"act:{station}:plugins"), ("🎵 Плеер", f"act:{station}:media_get")])
     except BotError:
         text = card("🏠 Управление станцией", ["🔴 Станция не отвечает", "Проверьте подключение. Когда связь восстановится, нажмите «Статус»."], label)
-    for row in [
+    sections = [
         [("📞 Интерком", "call"), ("🔔 Звуковые темы", "theme")],
         [("🎙 Голосовое / TTS", "tts"), ("🎛 Саундборд", "soundboard")],
         [("🚨 Сирена / эффект", "siren"), ("⏰ Таймер / будильник", "timer")],
         [("📦 Бэкап / образы", "backup"), ("💻 Терминал / скрипты", "terminal")],
         [("📸 Камера / охрана", "camera"), ("💬 Диалоги", "ask")],
         [("⚙️ Система / сеть", "system")],
-    ]:
+    ]
+    if is_max:
+        sections = [
+            [("🎙 Голосовое / TTS", "tts"), ("🎛 Саундборд", "soundboard")],
+            [("🚨 Сирена / эффект", "siren"), ("⏰ Таймер / будильник", "timer")],
+        ]
+    for row in sections:
         rows.append([(label, f"guide:{station}:{guide}") for label, guide in row])
     rows.append([("📋 Все функции", "features"), ("❔ Помощь", "help")])
     if user == service.config.owner_id:
@@ -151,6 +163,10 @@ def make_dispatcher(service: Service) -> Dispatcher:
                     [("🎙 Запись", "record"), ("📞 Интерком", "call")], [("🎛 Саундборд", "sounds"), ("🗣 Голос / текст", "tts")],
                     [("🔔 Темы", "theme"), ("🚨 Эффекты", "siren")], [("⏰ Таймеры", "timer"), ("📦 Бэкап", "backup")],
                     [("💻 Скрипты", "terminal"), ("📸 Камера", "camera")], [("💬 Помощник", "ask"), ("⚙️ Система", "system")]]
+        if service.clients[station].config.expected_model == "yandexstation_max":
+            sections = [[("📡 Статус", "status"), ("🔉 Громкость", "volume")],
+                        [("🎛 Саундборд", "sounds"), ("🗣 Голос / текст", "tts")],
+                        [("🚨 Эффекты", "siren"), ("⏰ Таймеры", "timer")]]
         rows = [[ui.button(user, station, label, page, mode="page", once=False) for label, page in row] for row in sections]
         rows += (await ui.keyboard(user, station, "help")).inline_keyboard
         lines = ["Управляйте станцией кнопками. Для текста или файла бот подскажет, что отправить следующим сообщением.", "", "Для отмены ввода нажмите «Главное меню» или отправьте /cancel."]
@@ -328,6 +344,9 @@ def make_dispatcher(service: Service) -> Dispatcher:
                 await service.store.finish_action(request, "accepted")
                 page = {"call": "call", "answer": "call", "hangup": "call", "guard": "camera", "led_effect": "led"}[command]
                 await show_page(message, user, station, page, request + ":panel")
+            except BotError:
+                await service.store.finish_action(request, "failed")
+                raise
             except BaseException:
                 await service.store.finish_action(request, "unknown")
                 raise

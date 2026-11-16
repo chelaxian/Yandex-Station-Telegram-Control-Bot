@@ -59,6 +59,37 @@ async def test_menu_uses_live_capabilities_and_never_mutates(service, bot):
     assert all(b.text != "🕒 Часы" for row in menu.reply_markup.inline_keyboard for b in row)
 
 
+async def test_max_menu_and_help_hide_unavailable_sections(service, bot):
+    from dataclasses import replace
+
+    import httpx
+
+    from stationbot.luna import Luna
+    from stationbot.max_gateway import FEATURES
+
+    config = replace(service.clients["mini"].config, expected_model="yandexstation_max")
+    async def reply(request):
+        if request.url.path.endswith("/device"):
+            return httpx.Response(200, json={"model": "yandexstation_max", "architecture": "aarch64",
+                                             "features": FEATURES, "led": {"ring_count": 0}})
+        return httpx.Response(404)
+    old = service.clients["mini"]
+    client = Luna(config, transport=httpx.MockTransport(reply))
+    service.clients["mini"] = client
+    try:
+        dp = make_dispatcher(service)
+        for index, command in enumerate(("/menu", "/features"), 1):
+            await dp.feed_update(bot, update(command, mid=index))
+            labels = [b.text for row in bot.session.sent[-1].reply_markup.inline_keyboard for b in row]
+            assert any("Громкость" in label for label in labels)
+            assert not any(word in label for label in labels for word in ("Интерком", "Диагностика", "Плеер", "Подсветка", "Запись"))
+        await dp.feed_update(bot, update("/health", mid=3))
+        assert "не поддерживается" in bot.session.sent[-1].text
+    finally:
+        await client.close()
+        service.clients["mini"] = old
+
+
 async def test_record_caption_reports_actual_wav_duration(service, bot):
     dp = make_dispatcher(service)
     await dp.feed_update(bot, update("/record 10"))

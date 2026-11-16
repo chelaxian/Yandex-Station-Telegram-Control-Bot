@@ -71,6 +71,11 @@ class Service:
             self.active.discard(user)
 
     async def _execute(self, client: Luna, action: str, args: list[str], payload: bytes | None = None) -> Any:
+        if client.config.expected_model == "yandexstation_max" and action in {
+            "health", "system", "fastfetch", "media", "media_get", "plugins", "invoke",
+            "clock", "clock_get", "screen", "led", "microphones", "record",
+        }:
+            raise Unavailable("Эта функция пока не поддерживается на Станции Макс.")
         extra = await self.features.execute(client, action, args, payload)
         if extra is not NotImplemented:
             return extra
