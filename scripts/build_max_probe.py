@@ -28,6 +28,10 @@ PROBES = {
         "entry": "stationbot.max_volume_probe:main",
         "files": ("__init__.py", "network.py", "provision.py", "max_ssh_probe.py", "max_volume_probe.py"),
     },
+    "gateway": {
+        "entry": "stationbot.max_gateway:main",
+        "files": ("__init__.py", "network.py", "provision.py", "max_ssh_probe.py", "max_gateway.py"),
+    },
     "mic": {
         "entry": "stationbot.max_mic_probe:main",
         "files": ("__init__.py", "network.py", "provision.py", "max_ssh_probe.py", "max_mic_probe.py"),
@@ -49,6 +53,8 @@ def build(probe: str, output: Path) -> str:
                 files.append(("stationbot/max-tone.jar", (source.parents[1] / "experiments/max-audio/max-tone.jar").read_bytes()))
             if probe == "android":
                 files.append(("stationbot/max-binder.jar", (source.parents[1] / "experiments/max-audio/max-binder.jar").read_bytes()))
+            if probe == "gateway":
+                files.append(("stationbot/max-play.jar", (source / "max-play.jar").read_bytes()))
             if probe == "mic":
                 files.append(("stationbot/max-mic.jar", (source.parents[1] / "experiments/max-audio/max-mic.jar").read_bytes()))
             files.append(("__main__.py", main.encode("utf-8")))

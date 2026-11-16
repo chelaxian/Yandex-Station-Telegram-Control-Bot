@@ -81,7 +81,7 @@ async def main_menu(service: Service, user: int) -> tuple[str, InlineKeyboardMar
     try:
         device = await client.device()
         text = card("🏠 Управление станцией", ["🟢 На связи", f"📞 Интерком: {'включён' if station in service.interactions.calls else 'выкл'}", f"🛡 Охрана: {'включена' if station in service.interactions.guards else 'выкл'}", "", "Выберите раздел ниже 👇"], label)
-        if "audio.volume.alsa" in device.features:
+        if device.features & {"audio.volume.alsa", "audio.volume.android"}:
             rows.append([("🔉 Громкость", f"act:{station}:volume_get")])
         if (("led.ring.rgb" in device.features and device.ring_count)
                 or ("led.logo" in device.features and device.logo_count)):
