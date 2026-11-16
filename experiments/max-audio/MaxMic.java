@@ -11,6 +11,16 @@ public final class MaxMic {
                 throw new IllegalArgumentException("parameters out of range");
             }
             Class<?> cls = Class.forName("android.media.AudioRecord");
+            // Android 9 AudioRecord passes ActivityThread.currentOpPackageName() to native code; a bare
+            // app_process has none and native String16(nullptr) crashes. Create the system context first.
+            Class<?> thread = Class.forName("android.app.ActivityThread");
+            try {
+                Class.forName("android.os.Looper").getMethod("prepareMainLooper").invoke(null);
+            } catch (Throwable ignored) { }
+            thread.getMethod("systemMain").invoke(null);
+            String opPackage = (String) thread.getMethod("currentOpPackageName").invoke(null);
+            System.out.println("MAX_MIC_STAGE opPackage=" + (opPackage == null ? "null" : opPackage));
+            if (opPackage == null || opPackage.isEmpty()) throw new IllegalStateException("no op package");
             // CHANNEL_IN_MONO=16, ENCODING_PCM_16BIT=2.
             int min = (Integer) cls.getMethod("getMinBufferSize", int.class, int.class, int.class).invoke(null, rate, 16, 2);
             if (min <= 0) throw new IllegalStateException("min buffer=" + min);
@@ -52,6 +62,6 @@ public final class MaxMic {
                 try { record.getClass().getMethod("release").invoke(record); } catch (Throwable ignored) { }
             }
         }
-        if (!ok) System.exit(1);
+        System.exit(ok ? 0 : 1);
     }
 }

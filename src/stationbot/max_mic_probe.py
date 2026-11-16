@@ -40,7 +40,9 @@ def run_mic(target: MaxSshTarget, ssh: str = "ssh", source: str = "mic", rate: i
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise ProvisionError("SSH недоступен или время ожидания истекло; проверьте остатки /data/local/tmp/max-mic.*") from exc
     lines = (result.stdout + "\n" + result.stderr).splitlines()
-    evidence = [line[:250] for line in lines if line.startswith(("MAX_MIC_RESULT ", "MAX_MIC_ERROR "))][:3]
+    evidence = [
+        line[:250] for line in lines if line.startswith(("MAX_MIC_STAGE ", "MAX_MIC_RESULT ", "MAX_MIC_ERROR "))
+    ][:6]
     if result.returncode != 0 or not any(line.startswith("MAX_MIC_RESULT ") for line in evidence):
         raise ProvisionError("Проверка микрофона не завершилась успешно. " + " ".join(evidence))
     return "\n".join(evidence)
