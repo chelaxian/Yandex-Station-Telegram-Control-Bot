@@ -26,6 +26,10 @@ def test_model_qualification_never_aliases_midi_to_station2():
     assert identify('0', 'aarch64', 'Yandex Pickle EVT\0', '0.369.1.50.4795647264.20261021.107') == 'yandexmini_3_pro'
     assert identify('0', 'aarch64', 'Yandex Station Midi\0', '0.369.1.50.4794649087.20261021.295') == 'yandexstation_2'
     assert identify('0', 'aarch64', 'Yandex Plum EVT2\0', '0.369.1.50.4795647582.20261021.133') == 'yandexplum'
+    # Max reports an Android platform name also used by Station 2; its board
+    # identity must not authorize the Station 2 installer profile.
+    with pytest.raises(ProvisionError):
+        identify('0', 'aarch64', 'Amlogic', 'PPR1.180610.011.5000000921')
     for values in [
         ('0','aarch64','Yandex Station Midi','other-firmware'),
         ('1000','aarch64','Yandex Pickle EVT','.50.4795647264.'),
@@ -58,6 +62,15 @@ def test_contract_check_reports_exact_missing_capability():
     assert missing_features(good, 'yandexplum', True) == set()
     assert missing_features(bad, 'yandexplum', True) == {'owner.tools.v1', 'owner.speech.phase.v1'}
     assert missing_features(good, 'yandexstation_2', True) == {'model'}
+
+
+def test_max_ring_contract_does_not_claim_unavailable_audio_or_owner_tools():
+    device = {'model': 'yandexstation_max', 'features': ['led.ring.rgb', 'led.ring.24'], 'led': {'ring_count': 24}}
+    assert missing_features(device, 'yandexstation_max', False) == set()
+    assert missing_features(device, 'yandexstation_max', True) == {'owner.tools.v1', 'owner.speech.phase.v1'}
+    device['led']['ring_count'] = 89
+    assert missing_features(device, 'yandexstation_max', False) == {'led.ring_count=24'}
+    assert missing_features(device, 'yandexstation_2', False) == {'model'}
 
 
 def test_unqualified_probe_and_bad_binary_perform_no_remote_write(tmp_path):

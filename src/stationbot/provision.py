@@ -95,14 +95,21 @@ def device_json(port: int):
         return json.loads(response.read(1024 * 1024))
 
 
-def required_features(owner_tools: bool) -> set[str]:
-    return {"audio.jobs.v1"} | ({"owner.tools.v1", "owner.speech.phase.v1"} if owner_tools else set())
+def required_features(owner_tools: bool, model: str = "") -> set[str]:
+    # The separately qualified experimental Max runtime currently has no
+    # audio backend. Do not require an unsupported feature for its ring-only
+    # contract; owner tools remain explicitly required when enabled.
+    baseline = {"led.ring.rgb", "led.ring.24"} if model == "yandexstation_max" else {"audio.jobs.v1"}
+    return baseline | ({"owner.tools.v1", "owner.speech.phase.v1"} if owner_tools else set())
 
 
 def missing_features(device: dict, model: str, owner_tools: bool) -> set[str]:
     if device.get("model") != model:
         return {"model"}
-    return required_features(owner_tools) - set(device.get("features", []))
+    missing = required_features(owner_tools, model) - set(device.get("features", []))
+    if model == "yandexstation_max" and (not isinstance(device.get("led"), dict) or device["led"].get("ring_count") != 24):
+        missing.add("led.ring_count=24")
+    return missing
 
 
 def apply_update_policy(port: int):

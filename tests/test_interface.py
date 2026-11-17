@@ -103,6 +103,19 @@ async def test_station_with_ring_and_logo_keeps_separate_controls(service, bot):
     assert any(r.url.path == "/api/led/ring" and r.method == "POST" for r in service.fakes[0].requests)
 
 
+async def test_experimental_max_ring_uses_capabilities(service, bot, monkeypatch):
+    async def max_device():
+        return Device("yandexstation_max", "aarch64", frozenset({"led.ring.rgb", "led.ring.24"}), 24, 0)
+
+    monkeypatch.setattr(service.clients["mini"], "device", max_device)
+    _, menu = await main_menu(service, 1)
+    assert any(b.text == "🌈 Подсветка" for row in menu.inline_keyboard for b in row)
+    dp = make_dispatcher(service)
+    await dp.feed_update(bot, click("guide:mini:led"))
+    await dp.feed_update(bot, click(button(bot.session.sent[-1], "🔴 Красный"), mid=11))
+    assert any(r.url.path == "/api/led/ring" and r.method == "POST" for r in service.fakes[0].requests)
+
+
 async def test_unavailable_led_zones_do_not_offer_commands(service, bot, monkeypatch):
     async def no_led():
         return Device("yandexmini_3_pro", "aarch64", frozenset(), 0, 0)

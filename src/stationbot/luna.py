@@ -119,7 +119,8 @@ class Luna:
 
     async def volume(self, percent: int | None = None) -> dict:
         d = await self.device()
-        d.require("audio.volume.alsa")
+        if not d.features & {"audio.volume.alsa", "audio.volume.android"}:
+            raise Unavailable("Станция не объявляет управление громкостью")
         if percent is None:
             result = await self.json("GET", "volume")
         else:
@@ -209,7 +210,7 @@ class Luna:
 
     async def audio_test(self) -> Any:
         d = await self.device()
-        if not d.features.intersection({"audio.play.aplay", "audio.play.mediad"}):
+        if not d.features.intersection({"audio.play.aplay", "audio.play.mediad", "audio.play.android"}):
             raise Unavailable("LUNA не объявляет аудиовыход")
         return await self.json("POST", "audio/test", request_timeout=20)
 
@@ -218,18 +219,19 @@ class Luna:
         device.require("audio.jobs.v1")
         if not 44 <= len(wav) <= 64 * 1024 * 1024:
             raise InvalidInput("Аудио: WAV до 64 МиБ")
-        if device.model == "yandexplum":
-            from .audio import apply_volume
+        if device.model in {"yandexplum", "yandexstation_max"}:
             volume = await self.volume()
             if volume["percent"] == 0:
                 raise Unavailable("Громкость станции 0% — воспроизведение отключено")
             playback_volume = volume["percent"]
-            wav = await asyncio.to_thread(apply_volume, wav, playback_volume)
+            if device.model == "yandexplum":  # Max applies the music-stream volume itself
+                from .audio import apply_volume
+                wav = await asyncio.to_thread(apply_volume, wav, playback_volume)
         result = await self.json("POST", "audio/jobs", content=wav,
                                headers={"Content-Type": "audio/wav", "Idempotency-Key": key},
                                request_timeout=60)
         job = self.audio_job(result)
-        if device.model == "yandexplum":
+        if device.model in {"yandexplum", "yandexstation_max"}:
             job["station_volume_percent"] = volume["percent"]
             job["playback_volume_percent"] = playback_volume
         return job
