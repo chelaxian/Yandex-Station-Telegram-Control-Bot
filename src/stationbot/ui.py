@@ -115,7 +115,7 @@ class Interface:
         elif page == "tts":
             row(prompt("✏️ Написать текст", "tts"), button("⏹ Остановить", "stop"))
         elif page in {"sounds", "soundboard"}:
-            for entry in (value or [])[:15]:
+            for entry in (value if isinstance(value, list) else [])[:15]:
                 if isinstance(entry, dict) and entry.get("name"):
                     row(button("▶️ " + entry["name"][:40], "play", entry["name"]))
             row(prompt("➕ Добавить звук", "sound_add"), button("⏹ Остановить", "stop"))
@@ -146,6 +146,8 @@ class Interface:
         elif page in {"ask", "dialogs", "legacy_history"}:
             row(prompt("💬 Задать вопрос", "ask"), page_button("📜 Диалоги", "dialogs"))
             row(page_button("🗂 Прежняя история", "legacy_history"))
+        elif page == "network" and self.service.clients[station].config.expected_model == "yandexstation_max":
+            row(page_button("🌐 Проверить связь", "network"), page_button("📜 История действий", "history"))
         elif page in {"system", "health", "network", "cleanup", "discover"}:
             row(page_button("🩺 Датчики", "health"), page_button("🌐 Проверить связь", "network"))
             row(page_button("⚙️ Система", "system"), button("🧹 Очистить временные файлы", "cleanup", owner=True))
@@ -165,7 +167,7 @@ class Interface:
     async def panel(self, user, station, page, request):
         if self.service.clients[station].config.expected_model == "yandexstation_max" and page in {
             "call", "record", "led", "clock", "screen", "health", "system", "media",
-            "media_get", "plugins", "backup", "terminal", "scripts", "firmware", "theme",
+            "media_get", "plugins", "terminal", "scripts", "firmware", "theme",
         }:
             from .errors import Unavailable
             raise Unavailable("Этот раздел пока не поддерживается на Станции Макс.")

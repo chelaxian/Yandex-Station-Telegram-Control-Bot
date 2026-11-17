@@ -82,12 +82,22 @@ async def test_max_menu_and_help_hide_unavailable_sections(service, bot):
             await dp.feed_update(bot, update(command, mid=index))
             labels = [b.text for row in bot.session.sent[-1].reply_markup.inline_keyboard for b in row]
             assert any("Громкость" in label for label in labels)
+            assert any("Камера" in label for label in labels)
+            assert any("Бэкап" in label for label in labels)
             assert not any(word in label for label in labels for word in ("Интерком", "Диагностика", "Плеер", "Подсветка", "Запись"))
         await dp.feed_update(bot, update("/health", mid=3))
         assert "не поддерживается" in bot.session.sent[-1].text
     finally:
         await client.close()
         service.clients["mini"] = old
+
+
+async def test_soundboard_keyboard_accepts_action_result(service):
+    from stationbot.ui import Interface
+
+    keyboard = await Interface(service).keyboard(1, "mini", "sounds", {"state": "queued", "id": "example"})
+    labels = [button.text for row in keyboard.inline_keyboard for button in row]
+    assert "➕ Добавить звук" in labels
 
 
 async def test_record_caption_reports_actual_wav_duration(service, bot):

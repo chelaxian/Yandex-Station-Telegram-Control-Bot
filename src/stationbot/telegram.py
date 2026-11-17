@@ -117,6 +117,8 @@ async def main_menu(service: Service, user: int) -> tuple[str, InlineKeyboardMar
         sections = [
             [("🎙 Голосовое / TTS", "tts"), ("🎛 Саундборд", "soundboard")],
             [("🚨 Сирена / эффект", "siren"), ("⏰ Таймер / будильник", "timer")],
+            [("📦 Бэкап / образы", "backup"), ("📸 Камера / охрана", "camera")],
+            [("💬 Помощник / диалоги", "ask"), ("🌐 Проверка связи", "network")],
         ]
     for row in sections:
         rows.append([(label, f"guide:{station}:{guide}") for label, guide in row])
@@ -166,7 +168,9 @@ def make_dispatcher(service: Service) -> Dispatcher:
         if service.clients[station].config.expected_model == "yandexstation_max":
             sections = [[("📡 Статус", "status"), ("🔉 Громкость", "volume")],
                         [("🎛 Саундборд", "sounds"), ("🗣 Голос / текст", "tts")],
-                        [("🚨 Эффекты", "siren"), ("⏰ Таймеры", "timer")]]
+                        [("🚨 Эффекты", "siren"), ("⏰ Таймеры", "timer")],
+                        [("📦 Бэкап", "backup"), ("📸 Камера", "camera")],
+                        [("💬 Помощник", "ask"), ("🌐 Связь", "network")]]
         rows = [[ui.button(user, station, label, page, mode="page", once=False) for label, page in row] for row in sections]
         rows += (await ui.keyboard(user, station, "help")).inline_keyboard
         lines = ["Управляйте станцией кнопками. Для текста или файла бот подскажет, что отправить следующим сообщением.", "", "Для отмены ввода нажмите «Главное меню» или отправьте /cancel."]
